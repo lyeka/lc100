@@ -1,0 +1,24 @@
+{
+  "id": 14,
+  "leetcodeId": 56,
+  "title": "合并区间",
+  "category": "数组/排序",
+  "difficulty": "Medium",
+  "description": "给定区间集合，合并所有重叠的区间。",
+  "hint": {
+    "core": "按起点排序，依次合并，当前区间起点 <= 前一区间终点则合并",
+    "keyPoints": [
+      "按 start 升序排序所有区间",
+      "遍历排序后的区间，若当前区间与结果最后一个区间重叠，则合并（更新 end 为较大值）",
+      "若不重叠，直接追加到结果"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "排序 + 合并",
+      "code": "func merge(intervals [][]int) [][]int {\n    sort.Slice(intervals, func(i, j int) bool {\n        return intervals[i][0] < intervals[j][0]\n    })\n    var res [][]int\n    for _, cur := range intervals {\n        if len(res) > 0 && cur[0] <= res[len(res)-1][1] {\n            // 重叠，合并\n            res[len(res)-1][1] = max(res[len(res)-1][1], cur[1])\n        } else {\n            res = append(res, cur)\n        }\n    }\n    return res\n}",
+      "timeComplexity": "O(n log n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

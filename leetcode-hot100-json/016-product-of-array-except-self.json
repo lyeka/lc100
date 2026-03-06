@@ -1,0 +1,24 @@
+{
+  "id": 16,
+  "leetcodeId": 238,
+  "title": "除自身以外数组的乘积",
+  "category": "数组",
+  "difficulty": "Medium",
+  "description": "给定整数数组，返回数组 answer，其中 answer[i] 等于 nums 中除 nums[i] 之外其余各元素的乘积。不能使用除法，要求 O(n)。",
+  "hint": {
+    "core": "左右两轮遍历，分别累积前缀积和后缀积，结果 = 前缀积 * 后缀积",
+    "keyPoints": [
+      "第一轮从左到右，res[i] 存储 i 左侧所有元素的乘积",
+      "第二轮从右到左，用一个变量累积右侧乘积，乘到 res[i] 上",
+      "不使用除法，O(1) 额外空间（输出数组不算）"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "前缀积 + 后缀积",
+      "code": "func productExceptSelf(nums []int) []int {\n    n := len(nums)\n    res := make([]int, n)\n\n    // 左侧前缀积\n    res[0] = 1\n    for i := 1; i < n; i++ {\n        res[i] = res[i-1] * nums[i-1]\n    }\n\n    // 右侧后缀积，直接乘入结果\n    right := 1\n    for i := n - 2; i >= 0; i-- {\n        right *= nums[i+1]\n        res[i] *= right\n    }\n    return res\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1) 额外空间"
+    }
+  ]
+}

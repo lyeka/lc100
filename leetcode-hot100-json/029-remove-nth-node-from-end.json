@@ -1,0 +1,24 @@
+{
+  "id": 29,
+  "leetcodeId": 19,
+  "title": "删除链表的倒数第 N 个结点",
+  "category": "链表",
+  "difficulty": "Medium",
+  "description": "删除链表的倒数第 n 个结点，并返回链表头。要求一趟扫描完成。",
+  "hint": {
+    "core": "快慢指针间隔 n 步，快指针到尾时慢指针在待删节点前",
+    "keyPoints": [
+      "dummy 哨兵节点处理删除头节点的边界",
+      "快指针先走 n+1 步，然后快慢同步走",
+      "快指针到 nil 时，慢指针.Next 就是要删除的节点"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "快慢指针",
+      "code": "func removeNthFromEnd(head *ListNode, n int) *ListNode {\n    dummy := &ListNode{Next: head}\n    slow, fast := dummy, dummy\n    // fast 先走 n+1 步，使 slow 停在待删节点的前驱\n    for i := 0; i <= n; i++ {\n        fast = fast.Next\n    }\n    for fast != nil {\n        slow = slow.Next\n        fast = fast.Next\n    }\n    slow.Next = slow.Next.Next\n    return dummy.Next\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

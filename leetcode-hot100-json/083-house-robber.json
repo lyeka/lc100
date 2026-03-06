@@ -1,0 +1,24 @@
+{
+  "id": 83,
+  "leetcodeId": 198,
+  "title": "打家劫舍",
+  "category": "动态规划",
+  "difficulty": "Medium",
+  "description": "沿街房屋存有不同金额，相邻房屋不能同时偷窃（会触发报警），求能偷到的最高金额。",
+  "hint": {
+    "core": "每间房选择偷或不偷，dp[i] = max(dp[i-1], dp[i-2] + nums[i])",
+    "keyPoints": [
+      "不偷第 i 间：收益 = dp[i-1]",
+      "偷第 i 间：收益 = dp[i-2] + nums[i]（不能连续偷）",
+      "只依赖前两个状态，滚动变量优化"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "滚动变量",
+      "code": "func rob(nums []int) int {\n    prev, curr := 0, 0\n    for _, n := range nums {\n        prev, curr = curr, max(curr, prev+n)\n    }\n    return curr\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

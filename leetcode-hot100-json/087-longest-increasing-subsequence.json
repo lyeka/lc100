@@ -1,0 +1,30 @@
+{
+  "id": 87,
+  "leetcodeId": 300,
+  "title": "最长递增子序列",
+  "category": "动态规划/二分",
+  "difficulty": "Medium",
+  "description": "给定整数数组，找到其中最长严格递增子序列的长度。",
+  "hint": {
+    "core": "经典 DP 为 O(n^2)；贪心+二分维护最小末尾数组达到 O(n log n)",
+    "keyPoints": [
+      "DP 解法：dp[i] = 以 nums[i] 结尾的 LIS 长度，枚举之前所有 j",
+      "贪心+二分：维护 tails 数组，tails[i] 是长度为 i+1 的递增子序列的最小末尾",
+      "对每个 num，二分找 tails 中第一个 >= num 的位置替换，找不到则追加"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "动态规划",
+      "code": "func lengthOfLIS(nums []int) int {\n    n := len(nums)\n    dp := make([]int, n)\n    res := 1\n    for i := range dp {\n        dp[i] = 1\n        for j := 0; j < i; j++ {\n            if nums[j] < nums[i] {\n                dp[i] = max(dp[i], dp[j]+1)\n            }\n        }\n        res = max(res, dp[i])\n    }\n    return res\n}",
+      "timeComplexity": "O(n^2)",
+      "spaceComplexity": "O(n)"
+    },
+    {
+      "name": "贪心+二分",
+      "code": "func lengthOfLIS(nums []int) int {\n    tails := []int{}\n    for _, num := range nums {\n        // 二分找第一个 >= num 的位置\n        lo, hi := 0, len(tails)\n        for lo < hi {\n            mid := lo + (hi-lo)/2\n            if tails[mid] < num {\n                lo = mid + 1\n            } else {\n                hi = mid\n            }\n        }\n        if lo == len(tails) {\n            tails = append(tails, num)\n        } else {\n            tails[lo] = num\n        }\n    }\n    return len(tails)\n}",
+      "timeComplexity": "O(n log n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": 69,
+  "leetcodeId": 20,
+  "title": "有效的括号",
+  "category": "栈",
+  "difficulty": "Easy",
+  "description": "判断只包含 ()[]{}  的字符串是否有效（括号必须正确配对和嵌套）。",
+  "hint": {
+    "core": "左括号入栈，遇右括号时栈顶必须是对应的左括号",
+    "keyPoints": [
+      "遇到左括号直接入栈",
+      "遇到右括号：栈空或栈顶不匹配则 false",
+      "遍历结束后栈必须为空",
+      "用 map 存右括号到左括号的映射简化判断"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "栈",
+      "code": "func isValid(s string) bool {\n    stack := []byte{}\n    match := map[byte]byte{')': '(', ']': '[', '}': '{'}\n    for i := 0; i < len(s); i++ {\n        if s[i] == '(' || s[i] == '[' || s[i] == '{' {\n            stack = append(stack, s[i])\n        } else {\n            if len(stack) == 0 || stack[len(stack)-1] != match[s[i]] {\n                return false\n            }\n            stack = stack[:len(stack)-1]\n        }\n    }\n    return len(stack) == 0\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

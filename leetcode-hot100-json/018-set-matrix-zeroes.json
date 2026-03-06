@@ -1,0 +1,24 @@
+{
+  "id": 18,
+  "leetcodeId": 73,
+  "title": "矩阵置零",
+  "category": "矩阵",
+  "difficulty": "Medium",
+  "description": "如果矩阵中某个元素为 0，则将其所在行和列的所有元素都设为 0。要求原地操作。",
+  "hint": {
+    "core": "用矩阵第一行和第一列作为标记数组，记录哪些行列需要置零",
+    "keyPoints": [
+      "先用两个布尔变量记录第一行和第一列本身是否含零",
+      "遍历矩阵（从 [1,1] 开始），遇到零就在对应的第一行和第一列做标记",
+      "再根据标记置零，最后处理第一行和第一列本身"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "原地标记",
+      "code": "func setZeroes(matrix [][]int) {\n    m, n := len(matrix), len(matrix[0])\n    firstRowZero, firstColZero := false, false\n\n    // 检查第一行第一列是否本身有零\n    for j := 0; j < n; j++ {\n        if matrix[0][j] == 0 {\n            firstRowZero = true\n            break\n        }\n    }\n    for i := 0; i < m; i++ {\n        if matrix[i][0] == 0 {\n            firstColZero = true\n            break\n        }\n    }\n\n    // 用第一行第一列做标记\n    for i := 1; i < m; i++ {\n        for j := 1; j < n; j++ {\n            if matrix[i][j] == 0 {\n                matrix[i][0] = 0\n                matrix[0][j] = 0\n            }\n        }\n    }\n\n    // 根据标记置零\n    for i := 1; i < m; i++ {\n        for j := 1; j < n; j++ {\n            if matrix[i][0] == 0 || matrix[0][j] == 0 {\n                matrix[i][j] = 0\n            }\n        }\n    }\n\n    // 处理第一行第一列\n    if firstRowZero {\n        for j := 0; j < n; j++ {\n            matrix[0][j] = 0\n        }\n    }\n    if firstColZero {\n        for i := 0; i < m; i++ {\n            matrix[i][0] = 0\n        }\n    }\n}",
+      "timeComplexity": "O(m * n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

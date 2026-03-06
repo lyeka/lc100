@@ -1,0 +1,25 @@
+{
+  "id": 77,
+  "leetcodeId": 121,
+  "title": "买卖股票的最佳时机",
+  "category": "贪心",
+  "difficulty": "Easy",
+  "description": "给定股票每日价格数组，选择某一天买入、未来某一天卖出，计算能获得的最大利润。",
+  "hint": {
+    "core": "遍历时维护历史最低价，每天计算当天卖出的利润取最大",
+    "keyPoints": [
+      "维护变量 minPrice 记录到当前为止的最低价",
+      "每天利润 = 今日价格 - minPrice",
+      "更新最大利润和最低价",
+      "一次遍历搞定"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "贪心",
+      "code": "func maxProfit(prices []int) int {\n    minPrice := prices[0]\n    profit := 0\n    for _, p := range prices {\n        if p < minPrice {\n            minPrice = p\n        } else if p-minPrice > profit {\n            profit = p - minPrice\n        }\n    }\n    return profit\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

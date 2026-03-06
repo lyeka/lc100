@@ -1,0 +1,24 @@
+{
+  "id": 38,
+  "leetcodeId": 226,
+  "title": "翻转二叉树",
+  "category": "二叉树",
+  "difficulty": "Easy",
+  "description": "翻转一棵二叉树（左右子树互换）。",
+  "hint": {
+    "core": "递归交换每个节点的左右子树",
+    "keyPoints": [
+      "空节点直接返回",
+      "交换当前节点的左右子节点",
+      "递归翻转左子树和右子树"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "递归",
+      "code": "func invertTree(root *TreeNode) *TreeNode {\n    if root == nil {\n        return nil\n    }\n    root.Left, root.Right = root.Right, root.Left\n    invertTree(root.Left)\n    invertTree(root.Right)\n    return root\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(h)"
+    }
+  ]
+}

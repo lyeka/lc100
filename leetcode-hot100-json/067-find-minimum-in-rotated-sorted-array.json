@@ -1,0 +1,25 @@
+{
+  "id": 67,
+  "leetcodeId": 153,
+  "title": "寻找旋转排序数组中的最小值",
+  "category": "二分查找",
+  "difficulty": "Medium",
+  "description": "在经过旋转的升序数组（无重复元素）中找到最小值。要求 O(log n)。",
+  "hint": {
+    "core": "二分比较 nums[mid] 和 nums[hi]，确定最小值在哪半边",
+    "keyPoints": [
+      "nums[mid] > nums[hi]：最小值在 mid 右边，lo = mid+1",
+      "nums[mid] <= nums[hi]：最小值在 mid 或 mid 左边，hi = mid",
+      "注意 hi = mid 而非 mid-1，因为 mid 本身可能是最小值",
+      "循环条件 lo < hi，结束时 lo == hi 即最小值"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "二分查找",
+      "code": "func findMin(nums []int) int {\n    lo, hi := 0, len(nums)-1\n    for lo < hi {\n        mid := lo + (hi-lo)/2\n        if nums[mid] > nums[hi] {\n            lo = mid + 1\n        } else {\n            hi = mid // mid 可能是最小值，不能跳过\n        }\n    }\n    return nums[lo]\n}",
+      "timeComplexity": "O(log n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

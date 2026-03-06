@@ -1,0 +1,24 @@
+{
+  "id": 26,
+  "leetcodeId": 142,
+  "title": "环形链表 II",
+  "category": "链表",
+  "difficulty": "Medium",
+  "description": "找到链表中环的入口节点。如果无环返回 nil。",
+  "hint": {
+    "core": "快慢指针找到相遇点后，头指针和相遇点同步走，再次相遇即环入口",
+    "keyPoints": [
+      "快慢指针检测环，记录相遇点",
+      "相遇后将一个指针重置到 head，两指针都每次走一步",
+      "再次相遇的节点就是环入口（数学证明：head 到入口距离 = 相遇点到入口距离）"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "快慢指针 + 数学推导",
+      "code": "func detectCycle(head *ListNode) *ListNode {\n    slow, fast := head, head\n    for fast != nil && fast.Next != nil {\n        slow = slow.Next\n        fast = fast.Next.Next\n        if slow == fast {\n            // 相遇后，head 和相遇点同步走\n            slow = head\n            for slow != fast {\n                slow = slow.Next\n                fast = fast.Next\n            }\n            return slow\n        }\n    }\n    return nil\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

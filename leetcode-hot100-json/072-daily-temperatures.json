@@ -1,0 +1,25 @@
+{
+  "id": 72,
+  "leetcodeId": 739,
+  "title": "每日温度",
+  "category": "栈/单调栈",
+  "difficulty": "Medium",
+  "description": "给定每日温度数组，返回每天需要等几天才能遇到更高温度。没有更高温度则为 0。",
+  "hint": {
+    "core": "单调递减栈存索引，遇到更大温度时弹栈计算等待天数",
+    "keyPoints": [
+      "栈中存索引，维护从栈底到栈顶温度递减",
+      "当前温度 > 栈顶温度时，弹出栈顶，差值即为等待天数",
+      "持续弹出直到栈空或栈顶温度 >= 当前温度",
+      "最后将当前索引入栈"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "单调栈",
+      "code": "func dailyTemperatures(temperatures []int) []int {\n    n := len(temperatures)\n    res := make([]int, n)\n    stack := []int{} // 存索引，栈底到栈顶温度递减\n\n    for i, t := range temperatures {\n        for len(stack) > 0 && temperatures[stack[len(stack)-1]] < t {\n            j := stack[len(stack)-1]\n            stack = stack[:len(stack)-1]\n            res[j] = i - j\n        }\n        stack = append(stack, i)\n    }\n    return res\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

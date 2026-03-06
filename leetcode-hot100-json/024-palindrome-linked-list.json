@@ -1,0 +1,24 @@
+{
+  "id": 24,
+  "leetcodeId": 234,
+  "title": "回文链表",
+  "category": "链表",
+  "difficulty": "Easy",
+  "description": "判断单链表是否为回文链表。要求 O(n) 时间、O(1) 空间。",
+  "hint": {
+    "core": "快慢指针找中点 + 翻转后半段 + 逐一比较",
+    "keyPoints": [
+      "快慢指针找到链表中点（慢指针到达中间位置）",
+      "翻转后半段链表",
+      "从头和从中点同时遍历比较值是否相等"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "翻转后半段",
+      "code": "func isPalindrome(head *ListNode) bool {\n    slow, fast := head, head\n    for fast != nil && fast.Next != nil {\n        slow = slow.Next\n        fast = fast.Next.Next\n    }\n\n    // 翻转后半段\n    var prev *ListNode\n    for slow != nil {\n        next := slow.Next\n        slow.Next = prev\n        prev = slow\n        slow = next\n    }\n\n    // 比较前半段和翻转后的后半段\n    for prev != nil {\n        if head.Val != prev.Val {\n            return false\n        }\n        head = head.Next\n        prev = prev.Next\n    }\n    return true\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": 82,
+  "leetcodeId": 118,
+  "title": "杨辉三角",
+  "category": "动态规划",
+  "difficulty": "Easy",
+  "description": "给定行数 numRows，生成杨辉三角的前 numRows 行。",
+  "hint": {
+    "core": "逐行构建，每个元素 = 上一行左上 + 正上",
+    "keyPoints": [
+      "每行首尾为 1",
+      "中间元素 res[i][j] = res[i-1][j-1] + res[i-1][j]",
+      "第 i 行有 i+1 个元素"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "逐行构建",
+      "code": "func generate(numRows int) [][]int {\n    res := make([][]int, numRows)\n    for i := 0; i < numRows; i++ {\n        row := make([]int, i+1)\n        row[0], row[i] = 1, 1\n        for j := 1; j < i; j++ {\n            row[j] = res[i-1][j-1] + res[i-1][j]\n        }\n        res[i] = row\n    }\n    return res\n}",
+      "timeComplexity": "O(n^2)",
+      "spaceComplexity": "O(n^2)"
+    }
+  ]
+}

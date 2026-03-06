@@ -1,0 +1,24 @@
+{
+  "id": 20,
+  "leetcodeId": 48,
+  "title": "旋转图像",
+  "category": "矩阵",
+  "difficulty": "Medium",
+  "description": "将 n×n 矩阵顺时针旋转 90 度。必须原地旋转，不能使用额外矩阵。",
+  "hint": {
+    "core": "先沿主对角线转置矩阵，再左右翻转每一行，即完成顺时针 90 度旋转",
+    "keyPoints": [
+      "转置：swap(matrix[i][j], matrix[j][i])，遍历上三角即可",
+      "左右翻转：每行首尾交换",
+      "两步操作组合等价于顺时针旋转 90 度"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "转置 + 翻转",
+      "code": "func rotate(matrix [][]int) {\n    n := len(matrix)\n\n    // 沿主对角线转置\n    for i := 0; i < n; i++ {\n        for j := i + 1; j < n; j++ {\n            matrix[i][j], matrix[j][i] = matrix[j][i], matrix[i][j]\n        }\n    }\n\n    // 每行左右翻转\n    for i := 0; i < n; i++ {\n        for l, r := 0, n-1; l < r; l, r = l+1, r-1 {\n            matrix[i][l], matrix[i][r] = matrix[i][r], matrix[i][l]\n        }\n    }\n}",
+      "timeComplexity": "O(n^2)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": 79,
+  "leetcodeId": 45,
+  "title": "跳跃游戏 II",
+  "category": "贪心",
+  "difficulty": "Medium",
+  "description": "数组每个元素代表在该位置可以跳跃的最大长度，求到达最后位置的最少跳跃次数。保证可以到达。",
+  "hint": {
+    "core": "BFS 思想：每一跳的范围是一层，统计到达终点的最少层数",
+    "keyPoints": [
+      "curEnd 标记当前跳的边界，maxReach 标记当前跳内能到达的最远位置",
+      "遍历到 curEnd 时必须跳一次，steps++，curEnd 更新为 maxReach",
+      "不需要遍历最后一个元素（到达即可，不需要从终点再跳）"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "贪心",
+      "code": "func jump(nums []int) int {\n    steps := 0\n    curEnd := 0\n    maxReach := 0\n    // 不遍历最后一个位置，到达终点即可\n    for i := 0; i < len(nums)-1; i++ {\n        if i+nums[i] > maxReach {\n            maxReach = i + nums[i]\n        }\n        if i == curEnd {\n            steps++\n            curEnd = maxReach\n        }\n    }\n    return steps\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

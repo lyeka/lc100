@@ -1,0 +1,24 @@
+{
+  "id": 35,
+  "leetcodeId": 146,
+  "title": "LRU 缓存",
+  "category": "链表/哈希表",
+  "difficulty": "Medium",
+  "description": "设计并实现 LRU（最近最少使用）缓存机制，get 和 put 操作均为 O(1)。",
+  "hint": {
+    "core": "哈希表 O(1) 查找 + 双向链表 O(1) 维护访问顺序",
+    "keyPoints": [
+      "哈希表存 key -> 链表节点，实现 O(1) 定位",
+      "双向链表维护使用顺序，最近使用的放头部，淘汰尾部",
+      "get/put 时将节点移到头部，put 超容量时删除尾部节点"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "哈希表 + 双向链表",
+      "code": "type LRUCache struct {\n    cap        int\n    m          map[int]*node\n    head, tail *node // 哨兵节点\n}\n\ntype node struct {\n    key, val   int\n    prev, next *node\n}\n\nfunc Constructor(capacity int) LRUCache {\n    head := &node{}\n    tail := &node{}\n    head.next = tail\n    tail.prev = head\n    return LRUCache{cap: capacity, m: make(map[int]*node), head: head, tail: tail}\n}\n\nfunc (c *LRUCache) Get(key int) int {\n    if n, ok := c.m[key]; ok {\n        c.moveToHead(n)\n        return n.val\n    }\n    return -1\n}\n\nfunc (c *LRUCache) Put(key int, value int) {\n    if n, ok := c.m[key]; ok {\n        n.val = value\n        c.moveToHead(n)\n        return\n    }\n    n := &node{key: key, val: value}\n    c.m[key] = n\n    c.addToHead(n)\n    if len(c.m) > c.cap {\n        removed := c.removeTail()\n        delete(c.m, removed.key)\n    }\n}\n\nfunc (c *LRUCache) addToHead(n *node) {\n    n.prev = c.head\n    n.next = c.head.next\n    c.head.next.prev = n\n    c.head.next = n\n}\n\nfunc (c *LRUCache) removeNode(n *node) {\n    n.prev.next = n.next\n    n.next.prev = n.prev\n}\n\nfunc (c *LRUCache) moveToHead(n *node) {\n    c.removeNode(n)\n    c.addToHead(n)\n}\n\nfunc (c *LRUCache) removeTail() *node {\n    n := c.tail.prev\n    c.removeNode(n)\n    return n\n}",
+      "timeComplexity": "O(1) get/put",
+      "spaceComplexity": "O(capacity)"
+    }
+  ]
+}

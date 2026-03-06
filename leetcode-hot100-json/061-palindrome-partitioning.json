@@ -1,0 +1,25 @@
+{
+  "id": 61,
+  "leetcodeId": 131,
+  "title": "分割回文串",
+  "category": "回溯",
+  "difficulty": "Medium",
+  "description": "给定字符串 s，将其分割成若干子串，使每个子串都是回文串。返回所有可能的分割方案。",
+  "hint": {
+    "core": "回溯枚举所有分割位置，对每个子串判断是否回文",
+    "keyPoints": [
+      "从索引 start 开始，枚举 end 从 start 到 len-1，截取子串判断回文",
+      "是回文则加入路径，递归处理 end+1 开始的剩余部分",
+      "start == len 时收集一组合法分割",
+      "可用预处理 dp 表加速回文判断"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "回溯 + 动态规划预处理",
+      "code": "func partition(s string) [][]string {\n    n := len(s)\n    // dp[i][j] 表示 s[i..j] 是否为回文\n    dp := make([][]bool, n)\n    for i := range dp {\n        dp[i] = make([]bool, n)\n        dp[i][i] = true\n    }\n    for l := 2; l <= n; l++ {\n        for i := 0; i <= n-l; i++ {\n            j := i + l - 1\n            if s[i] == s[j] {\n                dp[i][j] = l == 2 || dp[i+1][j-1]\n            }\n        }\n    }\n\n    var res [][]string\n    var path []string\n    var backtrack func(start int)\n    backtrack = func(start int) {\n        if start == n {\n            tmp := make([]string, len(path))\n            copy(tmp, path)\n            res = append(res, tmp)\n            return\n        }\n        for end := start; end < n; end++ {\n            if dp[start][end] {\n                path = append(path, s[start:end+1])\n                backtrack(end + 1)\n                path = path[:len(path)-1]\n            }\n        }\n    }\n    backtrack(0)\n    return res\n}",
+      "timeComplexity": "O(n * 2^n)",
+      "spaceComplexity": "O(n^2)"
+    }
+  ]
+}

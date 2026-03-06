@@ -1,0 +1,24 @@
+{
+  "id": 50,
+  "leetcodeId": 124,
+  "title": "二叉树中的最大路径和",
+  "category": "二叉树",
+  "difficulty": "Hard",
+  "description": "找出二叉树中任意节点到任意节点路径上的最大节点值之和。路径不需要经过根节点。",
+  "hint": {
+    "core": "后序递归：每个节点计算\"经过自己的最大路径和\"，同时向上返回\"单边最大贡献\"",
+    "keyPoints": [
+      "后序遍历，每个节点获取左右子树的最大单边贡献值（负数取 0）",
+      "经过当前节点的路径和 = node.Val + leftGain + rightGain，更新全局最大值",
+      "向上返回 node.Val + max(leftGain, rightGain)，因为路径不能分叉"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "后序递归",
+      "code": "func maxPathSum(root *TreeNode) int {\n    maxSum := math.MinInt32\n    var dfs func(*TreeNode) int\n    dfs = func(node *TreeNode) int {\n        if node == nil {\n            return 0\n        }\n        // 负贡献直接丢弃\n        leftGain := max(0, dfs(node.Left))\n        rightGain := max(0, dfs(node.Right))\n        // 经过当前节点的完整路径\n        maxSum = max(maxSum, node.Val+leftGain+rightGain)\n        // 向上只能选一边\n        return node.Val + max(leftGain, rightGain)\n    }\n    dfs(root)\n    return maxSum\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(h)"
+    }
+  ]
+}

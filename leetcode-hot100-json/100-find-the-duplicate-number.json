@@ -1,0 +1,24 @@
+{
+  "id": 100,
+  "leetcodeId": 287,
+  "title": "寻找重复数",
+  "category": "技巧/快慢指针",
+  "difficulty": "Medium",
+  "description": "数组包含 n+1 个整数，每个整数在 [1, n] 范围内，只有一个重复数字。找出这个重复数。不能修改数组，O(1) 空间。",
+  "hint": {
+    "core": "将数组视为链表（值指向下一个索引），用 Floyd 环检测找入环点即重复数",
+    "keyPoints": [
+      "nums[i] 的值作为\"下一跳\"索引，重复数 = 环的入口",
+      "快慢指针先相遇（证明有环），再从起点和相遇点同步走找入环点",
+      "不修改数组，O(1) 空间"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "Floyd 快慢指针",
+      "code": "func findDuplicate(nums []int) int {\n    slow, fast := nums[0], nums[nums[0]]\n    // 找相遇点\n    for slow != fast {\n        slow = nums[slow]\n        fast = nums[nums[fast]]\n    }\n    // 找入环点\n    slow = 0\n    for slow != fast {\n        slow = nums[slow]\n        fast = nums[fast]\n    }\n    return slow\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

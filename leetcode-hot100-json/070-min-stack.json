@@ -1,0 +1,25 @@
+{
+  "id": 70,
+  "leetcodeId": 155,
+  "title": "最小栈",
+  "category": "栈",
+  "difficulty": "Medium",
+  "description": "设计一个支持 push、pop、top 和在 O(1) 时间内检索最小元素的栈。",
+  "hint": {
+    "core": "用辅助栈同步记录当前最小值，每次 push/pop 时同步操作",
+    "keyPoints": [
+      "主栈正常存数据",
+      "辅助栈栈顶始终是当前主栈中的最小值",
+      "push 时辅助栈压入 min(val, 辅助栈顶)",
+      "pop 时两个栈同时弹出"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "双栈",
+      "code": "type MinStack struct {\n    stack    []int\n    minStack []int\n}\n\nfunc Constructor() MinStack {\n    return MinStack{\n        minStack: []int{math.MaxInt64},\n    }\n}\n\nfunc (s *MinStack) Push(val int) {\n    s.stack = append(s.stack, val)\n    top := s.minStack[len(s.minStack)-1]\n    if val < top {\n        s.minStack = append(s.minStack, val)\n    } else {\n        s.minStack = append(s.minStack, top)\n    }\n}\n\nfunc (s *MinStack) Pop() {\n    s.stack = s.stack[:len(s.stack)-1]\n    s.minStack = s.minStack[:len(s.minStack)-1]\n}\n\nfunc (s *MinStack) Top() int {\n    return s.stack[len(s.stack)-1]\n}\n\nfunc (s *MinStack) GetMin() int {\n    return s.minStack[len(s.minStack)-1]\n}",
+      "timeComplexity": "O(1) 各操作",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": 44,
+  "leetcodeId": 230,
+  "title": "二叉搜索树中第 K 小的元素",
+  "category": "二叉树",
+  "difficulty": "Medium",
+  "description": "找到二叉搜索树中第 k 小的元素。",
+  "hint": {
+    "core": "BST 中序遍历就是升序序列：遍历到第 k 个即答案",
+    "keyPoints": [
+      "中序遍历 BST，维护计数器",
+      "计数器达到 k 时记录结果并提前终止",
+      "迭代写法用栈模拟中序，更容易提前退出"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "中序遍历递归",
+      "code": "func kthSmallest(root *TreeNode, k int) int {\n    var res int\n    var inorder func(*TreeNode)\n    inorder = func(node *TreeNode) {\n        if node == nil || k == 0 {\n            return\n        }\n        inorder(node.Left)\n        k--\n        if k == 0 {\n            res = node.Val\n            return\n        }\n        inorder(node.Right)\n    }\n    inorder(root)\n    return res\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(h)"
+    },
+    {
+      "name": "迭代栈",
+      "code": "func kthSmallest(root *TreeNode, k int) int {\n    stack := []*TreeNode{}\n    cur := root\n    for cur != nil || len(stack) > 0 {\n        for cur != nil {\n            stack = append(stack, cur)\n            cur = cur.Left\n        }\n        cur = stack[len(stack)-1]\n        stack = stack[:len(stack)-1]\n        k--\n        if k == 0 {\n            return cur.Val\n        }\n        cur = cur.Right\n    }\n    return -1\n}",
+      "timeComplexity": "O(h+k)",
+      "spaceComplexity": "O(h)"
+    }
+  ]
+}

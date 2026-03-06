@@ -1,0 +1,24 @@
+{
+  "id": 21,
+  "leetcodeId": 240,
+  "title": "搜索二维矩阵 II",
+  "category": "矩阵",
+  "difficulty": "Medium",
+  "description": "在每行从左到右升序、每列从上到下升序的 m×n 矩阵中，搜索目标值是否存在。",
+  "hint": {
+    "core": "从右上角出发，利用行列有序性逐步缩小搜索范围",
+    "keyPoints": [
+      "从右上角 (0, n-1) 开始，当前值大于 target 则左移，小于则下移",
+      "每一步排除一整行或一整列",
+      "终止条件：找到 target 或越界"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "右上角逼近",
+      "code": "func searchMatrix(matrix [][]int, target int) bool {\n    if len(matrix) == 0 || len(matrix[0]) == 0 {\n        return false\n    }\n    row, col := 0, len(matrix[0])-1\n    for row < len(matrix) && col >= 0 {\n        if matrix[row][col] == target {\n            return true\n        } else if matrix[row][col] > target {\n            col--\n        } else {\n            row++\n        }\n    }\n    return false\n}",
+      "timeComplexity": "O(m+n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

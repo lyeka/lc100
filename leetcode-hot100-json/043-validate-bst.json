@@ -1,0 +1,29 @@
+{
+  "id": 43,
+  "leetcodeId": 98,
+  "title": "验证二叉搜索树",
+  "category": "二叉树",
+  "difficulty": "Medium",
+  "description": "判断给定二叉树是否是有效的二叉搜索树（左子树所有值 < 根 < 右子树所有值）。",
+  "hint": {
+    "core": "中序遍历递增 或 递归传上下界：BST 的充要条件是每个节点都在合法区间内",
+    "keyPoints": [
+      "递归方式：传入 `(low, high)` 区间，当前节点值必须严格在区间内",
+      "中序方式：中序遍历过程中维护 `prev`，每个值必须严格大于前驱"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "递归上下界",
+      "code": "func isValidBST(root *TreeNode) bool {\n    return validate(root, math.MinInt64, math.MaxInt64)\n}\n\nfunc validate(node *TreeNode, low, high int) bool {\n    if node == nil {\n        return true\n    }\n    if node.Val <= low || node.Val >= high {\n        return false\n    }\n    return validate(node.Left, low, node.Val) &&\n        validate(node.Right, node.Val, high)\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(h)"
+    },
+    {
+      "name": "中序遍历",
+      "code": "func isValidBST(root *TreeNode) bool {\n    prev := math.MinInt64\n    var inorder func(*TreeNode) bool\n    inorder = func(node *TreeNode) bool {\n        if node == nil {\n            return true\n        }\n        if !inorder(node.Left) {\n            return false\n        }\n        if node.Val <= prev {\n            return false\n        }\n        prev = node.Val\n        return inorder(node.Right)\n    }\n    return inorder(root)\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(h)"
+    }
+  ]
+}

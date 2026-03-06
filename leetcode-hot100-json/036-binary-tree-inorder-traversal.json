@@ -1,0 +1,30 @@
+{
+  "id": 36,
+  "leetcodeId": 94,
+  "title": "二叉树的中序遍历",
+  "category": "二叉树",
+  "difficulty": "Easy",
+  "description": "返回二叉树的中序遍历结果（左→根→右）。",
+  "hint": {
+    "core": "中序遍历 = 左-根-右，迭代法用栈模拟递归",
+    "keyPoints": [
+      "不断将左子节点压栈，直到 nil",
+      "弹出栈顶，记录值，转向右子树",
+      "重复直到栈空且当前节点为 nil"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "迭代（栈）",
+      "code": "func inorderTraversal(root *TreeNode) []int {\n    var res []int\n    var stack []*TreeNode\n    curr := root\n    for curr != nil || len(stack) > 0 {\n        for curr != nil {\n            stack = append(stack, curr)\n            curr = curr.Left\n        }\n        curr = stack[len(stack)-1]\n        stack = stack[:len(stack)-1]\n        res = append(res, curr.Val)\n        curr = curr.Right\n    }\n    return res\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    },
+    {
+      "name": "递归",
+      "code": "func inorderTraversal(root *TreeNode) []int {\n    var res []int\n    var dfs func(*TreeNode)\n    dfs = func(node *TreeNode) {\n        if node == nil {\n            return\n        }\n        dfs(node.Left)\n        res = append(res, node.Val)\n        dfs(node.Right)\n    }\n    dfs(root)\n    return res\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

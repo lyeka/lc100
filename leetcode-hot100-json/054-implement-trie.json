@@ -1,0 +1,24 @@
+{
+  "id": 54,
+  "leetcodeId": 208,
+  "title": "实现 Trie（前缀树）",
+  "category": "图论/字典树",
+  "difficulty": "Medium",
+  "description": "实现 Trie 数据结构，支持 insert、search 和 startsWith 操作。",
+  "hint": {
+    "core": "26 叉树：每个节点有 26 个子指针，isEnd 标记是否为完整单词结尾",
+    "keyPoints": [
+      "Insert：沿字符路径走，缺节点就创建，末尾标 isEnd",
+      "Search：沿字符路径走到底，节点存在且 isEnd 为 true",
+      "StartsWith：沿字符路径走到底，节点存在即可"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "数组实现 Trie",
+      "code": "type Trie struct {\n    children [26]*Trie\n    isEnd    bool\n}\n\nfunc Constructor() Trie {\n    return Trie{}\n}\n\nfunc (t *Trie) Insert(word string) {\n    node := t\n    for _, ch := range word {\n        idx := ch - 'a'\n        if node.children[idx] == nil {\n            node.children[idx] = &Trie{}\n        }\n        node = node.children[idx]\n    }\n    node.isEnd = true\n}\n\nfunc (t *Trie) Search(word string) bool {\n    node := t.searchPrefix(word)\n    return node != nil && node.isEnd\n}\n\nfunc (t *Trie) StartsWith(prefix string) bool {\n    return t.searchPrefix(prefix) != nil\n}\n\n// 公共辅助：沿前缀路径走到底\nfunc (t *Trie) searchPrefix(s string) *Trie {\n    node := t\n    for _, ch := range s {\n        idx := ch - 'a'\n        if node.children[idx] == nil {\n            return nil\n        }\n        node = node.children[idx]\n    }\n    return node\n}",
+      "timeComplexity": "O(L)",
+      "spaceComplexity": "O(L)"
+    }
+  ]
+}

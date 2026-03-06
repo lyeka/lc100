@@ -1,0 +1,24 @@
+{
+  "id": 1,
+  "leetcodeId": 1,
+  "title": "两数之和",
+  "category": "哈希表",
+  "difficulty": "Easy",
+  "description": "给定整数数组和目标值，找出数组中和为目标值的两个数的索引。每个输入恰好有一个解，同一元素不能重复使用。",
+  "hint": {
+    "core": "哈希表存已遍历值的索引，每次查找 target - nums[i] 是否存在",
+    "keyPoints": [
+      "遍历数组，对每个元素检查 target - nums[i] 是否已在哈希表中",
+      "若存在直接返回两个索引，若不存在则将当前值和索引存入哈希表",
+      "一次遍历即可完成，无需两层循环"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "哈希表",
+      "code": "func twoSum(nums []int, target int) []int {\n    m := make(map[int]int)\n    for i, v := range nums {\n        if j, ok := m[target-v]; ok {\n            return []int{j, i}\n        }\n        m[v] = i\n    }\n    return nil\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

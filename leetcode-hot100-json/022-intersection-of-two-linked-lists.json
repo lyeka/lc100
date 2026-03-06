@@ -1,0 +1,24 @@
+{
+  "id": 22,
+  "leetcodeId": 160,
+  "title": "相交链表",
+  "category": "链表",
+  "difficulty": "Easy",
+  "description": "找到两个单链表相交的起始节点。如果不相交返回 nil。",
+  "hint": {
+    "core": "双指针走完自己的链再走对方的链，相遇即交点",
+    "keyPoints": [
+      "指针 A 走完 listA 后接着走 listB，指针 B 走完 listB 后接着走 listA",
+      "两指针走过的总长度相同，必在交点处相遇",
+      "无交点时两指针同时到达 nil"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "双指针拼接",
+      "code": "func getIntersectionNode(headA, headB *ListNode) *ListNode {\n    a, b := headA, headB\n    for a != b {\n        if a != nil {\n            a = a.Next\n        } else {\n            a = headB\n        }\n        if b != nil {\n            b = b.Next\n        } else {\n            b = headA\n        }\n    }\n    return a\n}",
+      "timeComplexity": "O(m+n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": 8,
+  "leetcodeId": 3,
+  "title": "无重复字符的最长子串",
+  "category": "滑动窗口",
+  "difficulty": "Medium",
+  "description": "给定字符串，找出不含重复字符的最长子串的长度。",
+  "hint": {
+    "core": "滑动窗口 + 哈希表记录字符最新位置，遇重复直接跳到重复位置之后",
+    "keyPoints": [
+      "维护窗口 [left, right]，用 map 记录每个字符最后出现的位置",
+      "right 向右扩展，若当前字符已在窗口内，left 跳到 max(left, map[c]+1)",
+      "每步更新最大窗口长度"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "滑动窗口",
+      "code": "func lengthOfLongestSubstring(s string) int {\n    pos := make(map[byte]int)\n    best, left := 0, 0\n    for right := 0; right < len(s); right++ {\n        c := s[right]\n        if p, ok := pos[c]; ok && p >= left {\n            left = p + 1 // 跳过重复字符\n        }\n        pos[c] = right\n        if right-left+1 > best {\n            best = right - left + 1\n        }\n    }\n    return best\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(min(n, 字符集大小))"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": 76,
+  "leetcodeId": 295,
+  "title": "数据流的中位数",
+  "category": "堆",
+  "difficulty": "Hard",
+  "description": "设计数据结构，支持从数据流中添加整数并随时查找当前所有已添加数字的中位数。",
+  "hint": {
+    "core": "大顶堆存较小一半，小顶堆存较大一半，堆顶即中位数候选",
+    "keyPoints": [
+      "大顶堆 maxH 存较小的一半，小顶堆 minH 存较大的一半",
+      "保持 maxH.size == minH.size 或 maxH.size == minH.size + 1",
+      "添加元素：先入 maxH 再把 maxH 堆顶移入 minH，然后平衡大小",
+      "取中位数：奇数取 maxH 顶，偶数取两堆顶平均"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "对顶堆",
+      "code": "type MedianFinder struct {\n    maxH *MaxHeap // 较小一半\n    minH *MinHeap // 较大一半\n}\n\nfunc Constructor() MedianFinder {\n    return MedianFinder{&MaxHeap{}, &MinHeap{}}\n}\n\nfunc (mf *MedianFinder) AddNum(num int) {\n    heap.Push(mf.maxH, num)\n    // maxH 堆顶移入 minH，确保 maxH 所有元素 <= minH 所有元素\n    heap.Push(mf.minH, heap.Pop(mf.maxH))\n    // 平衡：maxH 大小 >= minH\n    if mf.maxH.Len() < mf.minH.Len() {\n        heap.Push(mf.maxH, heap.Pop(mf.minH))\n    }\n}\n\nfunc (mf *MedianFinder) FindMedian() float64 {\n    if mf.maxH.Len() > mf.minH.Len() {\n        return float64((*mf.maxH)[0])\n    }\n    return float64((*mf.maxH)[0]+(*mf.minH)[0]) / 2.0\n}\n\n// ---- 大顶堆 ----\ntype MaxHeap []int\n\nfunc (h MaxHeap) Len() int           { return len(h) }\nfunc (h MaxHeap) Less(i, j int) bool { return h[i] > h[j] }\nfunc (h MaxHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }\nfunc (h *MaxHeap) Push(x any)        { *h = append(*h, x.(int)) }\nfunc (h *MaxHeap) Pop() any {\n    old := *h\n    n := len(old)\n    x := old[n-1]\n    *h = old[:n-1]\n    return x\n}\n\n// ---- 小顶堆 ----\ntype MinHeap []int\n\nfunc (h MinHeap) Len() int           { return len(h) }\nfunc (h MinHeap) Less(i, j int) bool { return h[i] < h[j] }\nfunc (h MinHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }\nfunc (h *MinHeap) Push(x any)        { *h = append(*h, x.(int)) }\nfunc (h *MinHeap) Pop() any {\n    old := *h\n    n := len(old)\n    x := old[n-1]\n    *h = old[:n-1]\n    return x\n}",
+      "timeComplexity": "O(log n) 插入, O(1) 查询",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

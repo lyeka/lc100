@@ -1,0 +1,30 @@
+{
+  "id": 55,
+  "leetcodeId": 46,
+  "title": "全排列",
+  "category": "回溯",
+  "difficulty": "Medium",
+  "description": "给定不含重复数字的数组，返回其所有可能的全排列。",
+  "hint": {
+    "core": "回溯全排列：每次从剩余元素中选一个放入当前位置，用 visited 数组标记已选",
+    "keyPoints": [
+      "维护 path 和 visited 数组",
+      "递归深度等于数组长度时收集结果",
+      "每层遍历所有未被选择的元素，选择→递归→撤销"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "回溯 + visited",
+      "code": "func permute(nums []int) [][]int {\n    var res [][]int\n    n := len(nums)\n    path := make([]int, 0, n)\n    used := make([]bool, n)\n    var backtrack func()\n    backtrack = func() {\n        if len(path) == n {\n            res = append(res, append([]int{}, path...))\n            return\n        }\n        for i := 0; i < n; i++ {\n            if used[i] {\n                continue\n            }\n            used[i] = true\n            path = append(path, nums[i])\n            backtrack()\n            path = path[:len(path)-1]\n            used[i] = false\n        }\n    }\n    backtrack()\n    return res\n}",
+      "timeComplexity": "O(n!*n)",
+      "spaceComplexity": "O(n)"
+    },
+    {
+      "name": "交换法",
+      "code": "func permute(nums []int) [][]int {\n    var res [][]int\n    var backtrack func(int)\n    backtrack = func(start int) {\n        if start == len(nums) {\n            res = append(res, append([]int{}, nums...))\n            return\n        }\n        for i := start; i < len(nums); i++ {\n            nums[start], nums[i] = nums[i], nums[start]\n            backtrack(start + 1)\n            nums[start], nums[i] = nums[i], nums[start]\n        }\n    }\n    backtrack(0)\n    return res\n}",
+      "timeComplexity": "O(n!*n)",
+      "spaceComplexity": "O(n) 递归栈"
+    }
+  ]
+}

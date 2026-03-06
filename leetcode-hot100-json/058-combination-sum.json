@@ -1,0 +1,24 @@
+{
+  "id": 58,
+  "leetcodeId": 39,
+  "title": "组合总和",
+  "category": "回溯",
+  "difficulty": "Medium",
+  "description": "给定无重复元素的候选数数组和目标数，找出所有使数字和为目标数的组合。同一个数字可以无限制重复使用。",
+  "hint": {
+    "core": "回溯求组合：元素可重复使用，用 start 索引去重，剩余 target 为 0 时收集",
+    "keyPoints": [
+      "每层从 start 开始遍历候选数，允许重复选自己（递归传 i 而非 i+1）",
+      "剩余 target < 0 剪枝返回，== 0 收集结果",
+      "排序后可提前剪枝：candidates[i] > target 时 break"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "回溯 + 剪枝",
+      "code": "func combinationSum(candidates []int, target int) [][]int {\n    sort.Ints(candidates) // 排序便于剪枝\n    var res [][]int\n    var path []int\n    var backtrack func(int, int)\n    backtrack = func(start, remain int) {\n        if remain == 0 {\n            res = append(res, append([]int{}, path...))\n            return\n        }\n        for i := start; i < len(candidates); i++ {\n            if candidates[i] > remain {\n                break // 剪枝：后续更大，不可能凑出\n            }\n            path = append(path, candidates[i])\n            backtrack(i, remain-candidates[i]) // i 不是 i+1，允许重复\n            path = path[:len(path)-1]\n        }\n    }\n    backtrack(0, target)\n    return res\n}",
+      "timeComplexity": "O(n^(T/M))",
+      "spaceComplexity": "O(T/M)"
+    }
+  ]
+}

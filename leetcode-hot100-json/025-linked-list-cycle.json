@@ -1,0 +1,24 @@
+{
+  "id": 25,
+  "leetcodeId": 141,
+  "title": "环形链表",
+  "category": "链表",
+  "difficulty": "Easy",
+  "description": "判断链表中是否存在环。",
+  "hint": {
+    "core": "快慢指针，有环必相遇",
+    "keyPoints": [
+      "慢指针每次走一步，快指针每次走两步",
+      "有环时快指针终会追上慢指针",
+      "快指针到达 nil 说明无环"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "快慢指针",
+      "code": "func hasCycle(head *ListNode) bool {\n    slow, fast := head, head\n    for fast != nil && fast.Next != nil {\n        slow = slow.Next\n        fast = fast.Next.Next\n        if slow == fast {\n            return true\n        }\n    }\n    return false\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

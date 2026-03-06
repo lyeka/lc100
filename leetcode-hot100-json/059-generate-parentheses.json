@@ -1,0 +1,25 @@
+{
+  "id": 59,
+  "leetcodeId": 22,
+  "title": "括号生成",
+  "category": "回溯",
+  "difficulty": "Medium",
+  "description": "生成 n 对括号的所有有效组合（合法的括号序列）。",
+  "hint": {
+    "core": "回溯生成：维护左右括号剩余数，左括号可用时加左，右括号多于左时加右",
+    "keyPoints": [
+      "两个计数器 `open` 和 `close` 记录已用的左右括号数",
+      "open < n 时可以放左括号",
+      "close < open 时可以放右括号（保证合法性）",
+      "长度达到 2n 时收集结果"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "回溯 O(4^n / sqrt(n))",
+      "code": "func generateParenthesis(n int) []string {\n    var res []string\n    var path []byte\n    var backtrack func(int, int)\n    backtrack = func(open, close int) {\n        if len(path) == 2*n {\n            res = append(res, string(path))\n            return\n        }\n        if open < n {\n            path = append(path, '(')\n            backtrack(open+1, close)\n            path = path[:len(path)-1]\n        }\n        if close < open {\n            path = append(path, ')')\n            backtrack(open, close+1)\n            path = path[:len(path)-1]\n        }\n    }\n    backtrack(0, 0)\n    return res\n}",
+      "timeComplexity": "O(4^n / sqrt(n))",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

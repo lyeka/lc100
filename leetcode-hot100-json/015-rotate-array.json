@@ -1,0 +1,24 @@
+{
+  "id": 15,
+  "leetcodeId": 189,
+  "title": "轮转数组",
+  "category": "数组",
+  "difficulty": "Medium",
+  "description": "将数组中的元素向右轮转 k 个位置。",
+  "hint": {
+    "core": "三次翻转——整体翻转，前 k 个翻转，后 n-k 个翻转",
+    "keyPoints": [
+      "先将 k 取模 k = k % n，处理 k > n 的情况",
+      "翻转整个数组：[1,2,3,4,5,6,7] -> [7,6,5,4,3,2,1]",
+      "翻转前 k 个：[5,6,7,4,3,2,1]，翻转后 n-k 个：[5,6,7,1,2,3,4]"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "三次翻转",
+      "code": "func rotate(nums []int, k int) {\n    n := len(nums)\n    k %= n // k 可能大于 n\n    reverse(nums, 0, n-1)\n    reverse(nums, 0, k-1)\n    reverse(nums, k, n-1)\n}\n\nfunc reverse(nums []int, l, r int) {\n    for l < r {\n        nums[l], nums[r] = nums[r], nums[l]\n        l++\n        r--\n    }\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

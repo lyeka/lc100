@@ -1,0 +1,25 @@
+{
+  "id": 73,
+  "leetcodeId": 84,
+  "title": "柱状图中最大的矩形",
+  "category": "栈/单调栈",
+  "difficulty": "Hard",
+  "description": "给定 n 个非负整数表示柱子高度（宽度为 1），找到柱状图中能勾勒出的最大矩形面积。",
+  "hint": {
+    "core": "单调递增栈，对每个柱子找左右第一个更矮的柱子，宽度 * 高度即面积",
+    "keyPoints": [
+      "维护单调递增栈（存索引）",
+      "遇到更矮的柱子时弹栈，弹出柱子的高度作为矩形高",
+      "宽度 = 当前索引 - 新栈顶索引 - 1（左右边界之间的距离）",
+      "末尾追加高度 0 确保所有柱子都被处理"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "单调栈",
+      "code": "func largestRectangleArea(heights []int) int {\n    heights = append(heights, 0) // 哨兵，确保最后全部弹出\n    stack := []int{-1}           // 哨兵底，简化宽度计算\n    maxArea := 0\n\n    for i, h := range heights {\n        for len(stack) > 1 && heights[stack[len(stack)-1]] > h {\n            idx := stack[len(stack)-1]\n            stack = stack[:len(stack)-1]\n            width := i - stack[len(stack)-1] - 1\n            area := heights[idx] * width\n            if area > maxArea {\n                maxArea = area\n            }\n        }\n        stack = append(stack, i)\n    }\n    return maxArea\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

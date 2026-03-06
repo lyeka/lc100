@@ -1,0 +1,25 @@
+{
+  "id": 60,
+  "leetcodeId": 79,
+  "title": "单词搜索",
+  "category": "回溯",
+  "difficulty": "Medium",
+  "description": "给定 m*n 字符网格和一个单词，判断单词是否存在于网格中。字母必须相邻（上下左右），同一单元格不能重复使用。",
+  "hint": {
+    "core": "DFS 回溯：从每个格子出发，沿四方向逐字符匹配，原地标记防重复",
+    "keyPoints": [
+      "双重循环找起点，board[i][j] == word[0] 时启动 DFS",
+      "DFS 中匹配成功移向下一字符，四方向递归",
+      "原地修改 board 标记已访问（改为特殊字符），回溯时恢复",
+      "匹配到 word 末尾返回 true"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "DFS 回溯",
+      "code": "func exist(board [][]byte, word string) bool {\n    m, n := len(board), len(board[0])\n    var dfs func(int, int, int) bool\n    dfs = func(i, j, k int) bool {\n        if k == len(word) {\n            return true\n        }\n        if i < 0 || i >= m || j < 0 || j >= n || board[i][j] != word[k] {\n            return false\n        }\n        tmp := board[i][j]\n        board[i][j] = '#' // 标记已访问\n        found := dfs(i+1, j, k+1) || dfs(i-1, j, k+1) ||\n            dfs(i, j+1, k+1) || dfs(i, j-1, k+1)\n        board[i][j] = tmp // 回溯恢复\n        return found\n    }\n    for i := 0; i < m; i++ {\n        for j := 0; j < n; j++ {\n            if dfs(i, j, 0) {\n                return true\n            }\n        }\n    }\n    return false\n}",
+      "timeComplexity": "O(m*n*3^L)",
+      "spaceComplexity": "O(L)"
+    }
+  ]
+}

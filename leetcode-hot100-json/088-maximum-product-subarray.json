@@ -1,0 +1,24 @@
+{
+  "id": 88,
+  "leetcodeId": 152,
+  "title": "乘积最大子数组",
+  "category": "动态规划",
+  "difficulty": "Medium",
+  "description": "给定整数数组，找到乘积最大的连续子数组（至少包含一个数），返回其乘积。",
+  "hint": {
+    "core": "同时维护当前最大积和最小积，遇到负数时最大最小互换",
+    "keyPoints": [
+      "负数 * 最小值 可能变最大值，所以必须同时追踪 maxProd 和 minProd",
+      "每个位置三选一：num 自身、maxProd*num、minProd*num",
+      "遇到 0 相当于重新开始"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "双状态 DP",
+      "code": "func maxProduct(nums []int) int {\n    res, maxP, minP := nums[0], nums[0], nums[0]\n    for i := 1; i < len(nums); i++ {\n        // 负数翻转最大最小\n        if nums[i] < 0 {\n            maxP, minP = minP, maxP\n        }\n        maxP = max(nums[i], maxP*nums[i])\n        minP = min(nums[i], minP*nums[i])\n        res = max(res, maxP)\n    }\n    return res\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

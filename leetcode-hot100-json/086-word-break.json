@@ -1,0 +1,24 @@
+{
+  "id": 86,
+  "leetcodeId": 139,
+  "title": "单词拆分",
+  "category": "动态规划",
+  "difficulty": "Medium",
+  "description": "给定字符串 s 和字典 wordDict，判断 s 是否可以被拆分为一个或多个字典中的单词。",
+  "hint": {
+    "core": "dp[i] 表示 s[:i] 能否被拆分，枚举分割点 j 检查 dp[j] && s[j:i] in dict",
+    "keyPoints": [
+      "dp[0] = true（空串可拆分）",
+      "对每个位置 i，枚举所有 j < i，若 dp[j] 为 true 且 s[j:i] 在字典中，则 dp[i] = true",
+      "用 map 存字典加速查找"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "动态规划",
+      "code": "func wordBreak(s string, wordDict []string) bool {\n    dict := make(map[string]bool)\n    for _, w := range wordDict {\n        dict[w] = true\n    }\n    dp := make([]bool, len(s)+1)\n    dp[0] = true\n    for i := 1; i <= len(s); i++ {\n        for j := 0; j < i; j++ {\n            if dp[j] && dict[s[j:i]] {\n                dp[i] = true\n                break\n            }\n        }\n    }\n    return dp[len(s)]\n}",
+      "timeComplexity": "O(n^2*k)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

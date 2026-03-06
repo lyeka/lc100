@@ -1,0 +1,30 @@
+{
+  "id": 90,
+  "leetcodeId": 32,
+  "title": "最长有效括号",
+  "category": "动态规划/栈",
+  "difficulty": "Hard",
+  "description": "给定只包含 '(' 和 ')' 的字符串，找出最长有效括号子串的长度。",
+  "hint": {
+    "core": "栈存未匹配括号的索引，匹配时用当前索引减栈顶得长度；或 DP 以 ')' 结尾向前匹配",
+    "keyPoints": [
+      "栈解法：栈底维护\"最后一个未匹配的右括号索引\"作为分界线",
+      "DP 解法：dp[i] 表示以 s[i] 结尾的最长有效括号长度",
+      "遇到 ')' 时，检查 s[i-1-dp[i-1]] 是否为 '('"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "栈",
+      "code": "func longestValidParentheses(s string) int {\n    stack := []int{-1} // 栈底哨兵：最后一个未匹配右括号的位置\n    res := 0\n    for i := 0; i < len(s); i++ {\n        if s[i] == '(' {\n            stack = append(stack, i)\n        } else {\n            stack = stack[:len(stack)-1]\n            if len(stack) == 0 {\n                // 栈空，当前 ')' 成为新的分界线\n                stack = append(stack, i)\n            } else {\n                res = max(res, i-stack[len(stack)-1])\n            }\n        }\n    }\n    return res\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    },
+    {
+      "name": "动态规划",
+      "code": "func longestValidParentheses(s string) int {\n    dp := make([]int, len(s))\n    res := 0\n    for i := 1; i < len(s); i++ {\n        if s[i] == ')' {\n            if s[i-1] == '(' {\n                // ...()\n                dp[i] = 2\n                if i >= 2 {\n                    dp[i] += dp[i-2]\n                }\n            } else if dp[i-1] > 0 {\n                // ...))\n                j := i - 1 - dp[i-1] // 与当前 ')' 可能配对的位置\n                if j >= 0 && s[j] == '(' {\n                    dp[i] = dp[i-1] + 2\n                    if j >= 1 {\n                        dp[i] += dp[j-1] // 拼接之前的有效段\n                    }\n                }\n            }\n            res = max(res, dp[i])\n        }\n    }\n    return res\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

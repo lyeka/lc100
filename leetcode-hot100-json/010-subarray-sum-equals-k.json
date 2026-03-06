@@ -1,0 +1,24 @@
+{
+  "id": 10,
+  "leetcodeId": 560,
+  "title": "和为 K 的子数组",
+  "category": "子串/前缀和",
+  "difficulty": "Medium",
+  "description": "给定整数数组和整数 k，统计数组中和为 k 的连续子数组的个数。",
+  "hint": {
+    "core": "前缀和 + 哈希表，prefix[j] - prefix[i] == k 等价于查找 prefix[j] - k 出现次数",
+    "keyPoints": [
+      "维护前缀和 sum 和哈希表 count，count 记录每个前缀和出现的次数",
+      "对于当前前缀和 sum，sum - k 在之前出现过多少次，就有多少个子数组和为 k",
+      "初始化 count[0] = 1，表示空前缀"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "前缀和 + 哈希表",
+      "code": "func subarraySum(nums []int, k int) int {\n    count := map[int]int{0: 1} // 空前缀和为 0 出现 1 次\n    sum, res := 0, 0\n    for _, v := range nums {\n        sum += v\n        res += count[sum-k]\n        count[sum]++\n    }\n    return res\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": 4,
+  "leetcodeId": 283,
+  "title": "移动零",
+  "category": "双指针",
+  "difficulty": "Easy",
+  "description": "将数组中所有 0 移到末尾，同时保持非零元素的相对顺序。必须原地操作。",
+  "hint": {
+    "core": "快慢指针，快指针遇到非零就和慢指针交换，慢指针前进",
+    "keyPoints": [
+      "slow 指向下一个非零元素应放置的位置",
+      "fast 遍历数组，遇到非零元素就与 slow 位置交换",
+      "交换保证零元素自然被推到数组末尾"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "快慢指针",
+      "code": "func moveZeroes(nums []int) {\n    slow := 0\n    for fast := 0; fast < len(nums); fast++ {\n        if nums[fast] != 0 {\n            nums[slow], nums[fast] = nums[fast], nums[slow]\n            slow++\n        }\n    }\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

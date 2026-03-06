@@ -1,0 +1,24 @@
+{
+  "id": 39,
+  "leetcodeId": 101,
+  "title": "对称二叉树",
+  "category": "二叉树",
+  "difficulty": "Easy",
+  "description": "判断一棵二叉树是否是镜像对称的。",
+  "hint": {
+    "core": "递归比较镜像位置——左子的左 vs 右子的右，左子的右 vs 右子的左",
+    "keyPoints": [
+      "定义辅助函数 isMirror(left, right)",
+      "两节点都为 nil 返回 true，仅一个为 nil 返回 false",
+      "值相等且 isMirror(left.Left, right.Right) && isMirror(left.Right, right.Left)"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "递归",
+      "code": "func isSymmetric(root *TreeNode) bool {\n    if root == nil {\n        return true\n    }\n    return isMirror(root.Left, root.Right)\n}\n\nfunc isMirror(left, right *TreeNode) bool {\n    if left == nil && right == nil {\n        return true\n    }\n    if left == nil || right == nil {\n        return false\n    }\n    return left.Val == right.Val &&\n        isMirror(left.Left, right.Right) &&\n        isMirror(left.Right, right.Left)\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(h)"
+    }
+  ]
+}

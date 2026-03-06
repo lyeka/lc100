@@ -1,0 +1,24 @@
+{
+  "id": 13,
+  "leetcodeId": 53,
+  "title": "最大子数组和",
+  "category": "数组/动态规划",
+  "difficulty": "Medium",
+  "description": "给定整数数组，找出具有最大和的连续子数组（至少包含一个元素），返回其最大和。",
+  "hint": {
+    "core": "Kadane 算法，维护以当前元素结尾的最大子数组和，负数则重新开始",
+    "keyPoints": [
+      "dp[i] = max(nums[i], dp[i-1] + nums[i])，即\"接着前面\"还是\"重新开始\"",
+      "空间优化：只需一个变量 cur 记录当前最大子数组和",
+      "全程维护全局最大值"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "Kadane 算法",
+      "code": "func maxSubArray(nums []int) int {\n    best, cur := nums[0], nums[0]\n    for i := 1; i < len(nums); i++ {\n        if cur < 0 {\n            cur = nums[i] // 前缀为负，重新开始\n        } else {\n            cur += nums[i]\n        }\n        if cur > best {\n            best = cur\n        }\n    }\n    return best\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

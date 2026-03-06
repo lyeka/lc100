@@ -1,0 +1,25 @@
+{
+  "id": 98,
+  "leetcodeId": 75,
+  "title": "颜色分类",
+  "category": "技巧/双指针",
+  "difficulty": "Medium",
+  "description": "给定包含 0、1、2 的数组（代表红白蓝），原地排序使相同颜色相邻。不能使用排序库函数。",
+  "hint": {
+    "core": "荷兰国旗问题，三指针原地分区：lo 指向 0 的右边界，hi 指向 2 的左边界，mid 遍历",
+    "keyPoints": [
+      "lo 左边全是 0，hi 右边全是 2，中间全是 1",
+      "mid 遇到 0：与 lo 交换，lo++, mid++",
+      "mid 遇到 2：与 hi 交换，hi--（mid 不动，交换来的值还未检查）",
+      "mid 遇到 1：跳过，mid++"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "三指针分区",
+      "code": "func sortColors(nums []int) {\n    lo, mid, hi := 0, 0, len(nums)-1\n    for mid <= hi {\n        switch nums[mid] {\n        case 0:\n            nums[lo], nums[mid] = nums[mid], nums[lo]\n            lo++\n            mid++\n        case 1:\n            mid++\n        case 2:\n            nums[mid], nums[hi] = nums[hi], nums[mid]\n            hi-- // mid 不动，交换来的值还需检查\n        }\n    }\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

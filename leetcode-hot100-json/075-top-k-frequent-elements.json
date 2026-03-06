@@ -1,0 +1,30 @@
+{
+  "id": 75,
+  "leetcodeId": 347,
+  "title": "前 K 个高频元素",
+  "category": "堆",
+  "difficulty": "Medium",
+  "description": "给定整数数组和整数 k，返回出现频率前 k 高的元素。",
+  "hint": {
+    "core": "哈希表统计频率，然后用小顶堆/桶排序取前 k 高频",
+    "keyPoints": [
+      "先用 map 统计每个元素出现次数",
+      "方法一：小顶堆维护 k 个最高频元素",
+      "方法二：桶排序，下标为频率，值为元素列表，从高频桶往低频桶取 k 个"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "桶排序",
+      "code": "func topKFrequent(nums []int, k int) []int {\n    freq := map[int]int{}\n    for _, v := range nums {\n        freq[v]++\n    }\n\n    // 桶：下标是频率，值是该频率的元素\n    buckets := make([][]int, len(nums)+1)\n    for num, cnt := range freq {\n        buckets[cnt] = append(buckets[cnt], num)\n    }\n\n    res := []int{}\n    for i := len(buckets) - 1; i >= 0 && len(res) < k; i-- {\n        res = append(res, buckets[i]...)\n    }\n    return res[:k]\n}",
+      "timeComplexity": "O(n log k)",
+      "spaceComplexity": "O(n)"
+    },
+    {
+      "name": "小顶堆",
+      "code": "func topKFrequent(nums []int, k int) []int {\n    freq := map[int]int{}\n    for _, v := range nums {\n        freq[v]++\n    }\n\n    h := &FreqHeap{}\n    heap.Init(h)\n    for num, cnt := range freq {\n        heap.Push(h, [2]int{num, cnt})\n        if h.Len() > k {\n            heap.Pop(h)\n        }\n    }\n\n    res := make([]int, k)\n    for i := k - 1; i >= 0; i-- {\n        res[i] = heap.Pop(h).([2]int)[0]\n    }\n    return res\n}\n\ntype FreqHeap [][2]int\n\nfunc (h FreqHeap) Len() int           { return len(h) }\nfunc (h FreqHeap) Less(i, j int) bool { return h[i][1] < h[j][1] }\nfunc (h FreqHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }\nfunc (h *FreqHeap) Push(x any)        { *h = append(*h, x.([2]int)) }\nfunc (h *FreqHeap) Pop() any {\n    old := *h\n    n := len(old)\n    x := old[n-1]\n    *h = old[:n-1]\n    return x\n}",
+      "timeComplexity": "O(n log k)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

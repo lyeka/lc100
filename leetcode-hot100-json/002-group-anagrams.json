@@ -1,0 +1,30 @@
+{
+  "id": 2,
+  "leetcodeId": 49,
+  "title": "字母异位词分组",
+  "category": "哈希表",
+  "difficulty": "Medium",
+  "description": "给定字符串数组，将所有字母异位词（字母相同但排列不同的字符串）组合在一起。",
+  "hint": {
+    "core": "对每个字符串排序后作为哈希表的 key，相同 key 的归为一组",
+    "keyPoints": [
+      "将每个字符串转为字符数组排序，排序结果作为分组 key",
+      "也可用字符计数数组 [26]int 作为 key，避免排序开销",
+      "最终将哈希表的所有 value 收集为结果"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "排序作 key",
+      "code": "func groupAnagrams(strs []string) [][]string {\n    m := make(map[string][]string)\n    for _, s := range strs {\n        b := []byte(s)\n        sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })\n        key := string(b)\n        m[key] = append(m[key], s)\n    }\n    res := make([][]string, 0, len(m))\n    for _, v := range m {\n        res = append(res, v)\n    }\n    return res\n}",
+      "timeComplexity": "O(n * k log k)",
+      "spaceComplexity": "O(n * k)"
+    },
+    {
+      "name": "字符计数作 key",
+      "code": "func groupAnagrams(strs []string) [][]string {\n    m := make(map[[26]byte][]string)\n    for _, s := range strs {\n        var key [26]byte\n        for _, c := range s {\n            key[c-'a']++\n        }\n        m[key] = append(m[key], s)\n    }\n    res := make([][]string, 0, len(m))\n    for _, v := range m {\n        res = append(res, v)\n    }\n    return res\n}",
+      "timeComplexity": "O(n * k)",
+      "spaceComplexity": "O(n * k)"
+    }
+  ]
+}

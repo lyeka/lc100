@@ -1,0 +1,24 @@
+{
+  "id": 93,
+  "leetcodeId": 5,
+  "title": "最长回文子串",
+  "category": "多维动态规划/双指针",
+  "difficulty": "Medium",
+  "description": "给定字符串 s，找到 s 中最长的回文子串。",
+  "hint": {
+    "core": "中心扩展法，枚举每个字符（和每对相邻字符）作为回文中心向两侧扩展",
+    "keyPoints": [
+      "中心扩展：遍历 2n-1 个中心（奇数长度 + 偶数长度），O(n^2) 时间 O(1) 空间",
+      "DP 解法：dp[i][j] 表示 s[i..j] 是否回文，长度从小到大填表",
+      "中心扩展更简洁实用"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "中心扩展",
+      "code": "func longestPalindrome(s string) string {\n    start, maxLen := 0, 0\n    expand := func(l, r int) {\n        for l >= 0 && r < len(s) && s[l] == s[r] {\n            l--\n            r++\n        }\n        if r-l-1 > maxLen {\n            start = l + 1\n            maxLen = r - l - 1\n        }\n    }\n    for i := range s {\n        expand(i, i)   // 奇数长度\n        expand(i, i+1) // 偶数长度\n    }\n    return s[start : start+maxLen]\n}",
+      "timeComplexity": "O(n^2)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

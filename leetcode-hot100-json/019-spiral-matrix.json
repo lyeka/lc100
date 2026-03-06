@@ -1,0 +1,24 @@
+{
+  "id": 19,
+  "leetcodeId": 54,
+  "title": "螺旋矩阵",
+  "category": "矩阵",
+  "difficulty": "Medium",
+  "description": "给定 m×n 矩阵，按顺时针螺旋顺序返回矩阵中的所有元素。",
+  "hint": {
+    "core": "维护上下左右四个边界，按右→下→左→上循环遍历，每走完一边收缩对应边界",
+    "keyPoints": [
+      "四个边界 top, bottom, left, right，初始为矩阵边缘",
+      "每轮按顺序遍历四条边，走完后收缩对应边界",
+      "每次收缩后检查边界是否交叉，交叉则结束"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "模拟螺旋",
+      "code": "func spiralOrder(matrix [][]int) []int {\n    m, n := len(matrix), len(matrix[0])\n    res := make([]int, 0, m*n)\n    top, bottom, left, right := 0, m-1, 0, n-1\n\n    for top <= bottom && left <= right {\n        for j := left; j <= right; j++ {\n            res = append(res, matrix[top][j])\n        }\n        top++\n        for i := top; i <= bottom; i++ {\n            res = append(res, matrix[i][right])\n        }\n        right--\n        if top <= bottom {\n            for j := right; j >= left; j-- {\n                res = append(res, matrix[bottom][j])\n            }\n            bottom--\n        }\n        if left <= right {\n            for i := bottom; i >= top; i-- {\n                res = append(res, matrix[i][left])\n            }\n            left++\n        }\n    }\n    return res\n}",
+      "timeComplexity": "O(m * n)",
+      "spaceComplexity": "O(1) 额外空间"
+    }
+  ]
+}

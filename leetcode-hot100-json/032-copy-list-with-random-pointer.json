@@ -1,0 +1,30 @@
+{
+  "id": 32,
+  "leetcodeId": 138,
+  "title": "随机链表的复制",
+  "category": "链表",
+  "difficulty": "Medium",
+  "description": "深拷贝一个带有 next 和 random 指针的链表。random 可以指向链表中任意节点或 nil。",
+  "hint": {
+    "core": "三步法——交织复制、设置 random、拆分链表",
+    "keyPoints": [
+      "第一遍：在每个原节点后插入其复制节点 A -> A' -> B -> B'",
+      "第二遍：利用交织结构设置 copy.Random = original.Random.Next",
+      "第三遍：拆分交织链表，还原原链表并提取复制链表"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "交织拆分法",
+      "code": "func copyRandomList(head *Node) *Node {\n    if head == nil {\n        return nil\n    }\n\n    // 第一步：交织复制节点\n    curr := head\n    for curr != nil {\n        copy := &Node{Val: curr.Val, Next: curr.Next}\n        curr.Next = copy\n        curr = copy.Next\n    }\n\n    // 第二步：设置 random 指针\n    curr = head\n    for curr != nil {\n        if curr.Random != nil {\n            curr.Next.Random = curr.Random.Next\n        }\n        curr = curr.Next.Next\n    }\n\n    // 第三步：拆分\n    dummy := &Node{}\n    copyCurr := dummy\n    curr = head\n    for curr != nil {\n        copyCurr.Next = curr.Next\n        copyCurr = copyCurr.Next\n        curr.Next = curr.Next.Next\n        curr = curr.Next\n    }\n    return dummy.Next\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    },
+    {
+      "name": "哈希表法",
+      "code": "func copyRandomList(head *Node) *Node {\n    if head == nil {\n        return nil\n    }\n    m := make(map[*Node]*Node)\n    curr := head\n    for curr != nil {\n        m[curr] = &Node{Val: curr.Val}\n        curr = curr.Next\n    }\n    curr = head\n    for curr != nil {\n        m[curr].Next = m[curr.Next]\n        m[curr].Random = m[curr.Random]\n        curr = curr.Next\n    }\n    return m[head]\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": 34,
+  "leetcodeId": 23,
+  "title": "合并 K 个升序链表",
+  "category": "链表/堆",
+  "difficulty": "Hard",
+  "description": "将 k 个升序链表合并为一个升序链表。",
+  "hint": {
+    "core": "最小堆维护 k 个链表头，每次弹出最小节点",
+    "keyPoints": [
+      "将所有链表头节点入堆",
+      "每次弹出堆顶（最小值），接入结果链",
+      "弹出节点的 Next 非空则入堆，直到堆空"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "最小堆",
+      "code": "import \"container/heap\"\n\ntype MinHeap []*ListNode\n\nfunc (h MinHeap) Len() int            { return len(h) }\nfunc (h MinHeap) Less(i, j int) bool  { return h[i].Val < h[j].Val }\nfunc (h MinHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *MinHeap) Push(x interface{}) { *h = append(*h, x.(*ListNode)) }\nfunc (h *MinHeap) Pop() interface{} {\n    old := *h\n    n := len(old)\n    x := old[n-1]\n    *h = old[:n-1]\n    return x\n}\n\nfunc mergeKLists(lists []*ListNode) *ListNode {\n    h := &MinHeap{}\n    for _, l := range lists {\n        if l != nil {\n            heap.Push(h, l)\n        }\n    }\n    dummy := &ListNode{}\n    curr := dummy\n    for h.Len() > 0 {\n        node := heap.Pop(h).(*ListNode)\n        curr.Next = node\n        curr = curr.Next\n        if node.Next != nil {\n            heap.Push(h, node.Next)\n        }\n    }\n    return dummy.Next\n}",
+      "timeComplexity": "O(N log k)",
+      "spaceComplexity": "O(k)"
+    },
+    {
+      "name": "分治合并",
+      "code": "func mergeKLists(lists []*ListNode) *ListNode {\n    if len(lists) == 0 {\n        return nil\n    }\n    if len(lists) == 1 {\n        return lists[0]\n    }\n    mid := len(lists) / 2\n    left := mergeKLists(lists[:mid])\n    right := mergeKLists(lists[mid:])\n    return mergeTwoLists(left, right)\n}\n\nfunc mergeTwoLists(l1, l2 *ListNode) *ListNode {\n    dummy := &ListNode{}\n    curr := dummy\n    for l1 != nil && l2 != nil {\n        if l1.Val <= l2.Val {\n            curr.Next = l1\n            l1 = l1.Next\n        } else {\n            curr.Next = l2\n            l2 = l2.Next\n        }\n        curr = curr.Next\n    }\n    if l1 != nil {\n        curr.Next = l1\n    } else {\n        curr.Next = l2\n    }\n    return dummy.Next\n}",
+      "timeComplexity": "O(N log k)",
+      "spaceComplexity": "O(log k)"
+    }
+  ]
+}

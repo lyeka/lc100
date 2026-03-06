@@ -1,0 +1,24 @@
+{
+  "id": 40,
+  "leetcodeId": 543,
+  "title": "二叉树的直径",
+  "category": "二叉树",
+  "difficulty": "Easy",
+  "description": "求二叉树的直径，即任意两节点之间最长路径的边数。路径不一定经过根节点。",
+  "hint": {
+    "core": "后序遍历求每个节点的左右深度之和，全局取最大值",
+    "keyPoints": [
+      "直径 = 某节点的左子树深度 + 右子树深度（经过该节点的最长路径）",
+      "后序遍历中，每个节点返回自己的深度（max(左,右) + 1）",
+      "遍历过程中用全局变量记录最大直径"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "后序遍历",
+      "code": "func diameterOfBinaryTree(root *TreeNode) int {\n    maxDia := 0\n    var depth func(*TreeNode) int\n    depth = func(node *TreeNode) int {\n        if node == nil {\n            return 0\n        }\n        left := depth(node.Left)\n        right := depth(node.Right)\n        // 经过当前节点的直径\n        if left+right > maxDia {\n            maxDia = left + right\n        }\n        if left > right {\n            return left + 1\n        }\n        return right + 1\n    }\n    depth(root)\n    return maxDia\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(h)"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": 41,
+  "leetcodeId": 102,
+  "title": "二叉树的层序遍历",
+  "category": "二叉树/BFS",
+  "difficulty": "Medium",
+  "description": "返回二叉树的层序遍历结果（逐层从左到右）。",
+  "hint": {
+    "core": "BFS 逐层遍历：队列 + 按层批量弹出",
+    "keyPoints": [
+      "用队列存当前层节点，每轮记录队列长度 `size`",
+      "内层循环弹出 `size` 个节点，收集值，子节点入队",
+      "外层循环直到队列为空"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "BFS 层序遍历",
+      "code": "func levelOrder(root *TreeNode) [][]int {\n    if root == nil {\n        return nil\n    }\n    var res [][]int\n    queue := []*TreeNode{root}\n    for len(queue) > 0 {\n        size := len(queue)\n        level := make([]int, 0, size)\n        for i := 0; i < size; i++ {\n            node := queue[0]\n            queue = queue[1:]\n            level = append(level, node.Val)\n            if node.Left != nil {\n                queue = append(queue, node.Left)\n            }\n            if node.Right != nil {\n                queue = append(queue, node.Right)\n            }\n        }\n        res = append(res, level)\n    }\n    return res\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    },
+    {
+      "name": "DFS 递归",
+      "code": "func levelOrder(root *TreeNode) [][]int {\n    var res [][]int\n    var dfs func(*TreeNode, int)\n    dfs = func(node *TreeNode, depth int) {\n        if node == nil {\n            return\n        }\n        // depth 等于 res 长度时，说明进入新层\n        if depth == len(res) {\n            res = append(res, []int{})\n        }\n        res[depth] = append(res[depth], node.Val)\n        dfs(node.Left, depth+1)\n        dfs(node.Right, depth+1)\n    }\n    dfs(root, 0)\n    return res\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

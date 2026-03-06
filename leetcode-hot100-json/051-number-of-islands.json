@@ -1,0 +1,24 @@
+{
+  "id": 51,
+  "leetcodeId": 200,
+  "title": "岛屿数量",
+  "category": "图论/DFS",
+  "difficulty": "Medium",
+  "description": "给定 '1'（陆地）和 '0'（水）组成的二维网格，计算岛屿的数量。相邻陆地水平或垂直连接。",
+  "hint": {
+    "core": "遍历网格遇到 '1' 就启动 DFS/BFS 感染整座岛，计数器加一",
+    "keyPoints": [
+      "双重循环遍历网格，遇到 '1' 时岛屿计数 +1",
+      "DFS 将当前 '1' 标记为 '0'（原地修改避免 visited 数组），递归四个方向",
+      "所有相连的 '1' 被感染为 '0' 后，继续扫描下一个未访问的 '1'"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "DFS 感染",
+      "code": "func numIslands(grid [][]byte) int {\n    m, n := len(grid), len(grid[0])\n    count := 0\n    var dfs func(int, int)\n    dfs = func(i, j int) {\n        if i < 0 || i >= m || j < 0 || j >= n || grid[i][j] == '0' {\n            return\n        }\n        grid[i][j] = '0' // 沉岛，防止重复访问\n        dfs(i+1, j)\n        dfs(i-1, j)\n        dfs(i, j+1)\n        dfs(i, j-1)\n    }\n    for i := 0; i < m; i++ {\n        for j := 0; j < n; j++ {\n            if grid[i][j] == '1' {\n                count++\n                dfs(i, j)\n            }\n        }\n    }\n    return count\n}",
+      "timeComplexity": "O(m*n)",
+      "spaceComplexity": "O(m*n) 最坏递归深度"
+    }
+  ]
+}

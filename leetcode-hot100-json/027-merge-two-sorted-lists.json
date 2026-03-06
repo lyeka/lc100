@@ -1,0 +1,24 @@
+{
+  "id": 27,
+  "leetcodeId": 21,
+  "title": "合并两个有序链表",
+  "category": "链表",
+  "difficulty": "Easy",
+  "description": "将两个升序链表合并为一个新的升序链表。",
+  "hint": {
+    "core": "哨兵节点 + 逐一比较拼接",
+    "keyPoints": [
+      "创建 dummy 哨兵节点，消除头节点特殊处理",
+      "逐一比较两链表当前节点，较小者接入结果链",
+      "某一链表遍历完后，直接拼接另一链表剩余部分"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "迭代",
+      "code": "func mergeTwoLists(list1 *ListNode, list2 *ListNode) *ListNode {\n    dummy := &ListNode{}\n    curr := dummy\n    for list1 != nil && list2 != nil {\n        if list1.Val <= list2.Val {\n            curr.Next = list1\n            list1 = list1.Next\n        } else {\n            curr.Next = list2\n            list2 = list2.Next\n        }\n        curr = curr.Next\n    }\n    if list1 != nil {\n        curr.Next = list1\n    } else {\n        curr.Next = list2\n    }\n    return dummy.Next\n}",
+      "timeComplexity": "O(m+n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

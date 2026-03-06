@@ -1,0 +1,25 @@
+{
+  "id": 66,
+  "leetcodeId": 33,
+  "title": "搜索旋转排序数组",
+  "category": "二分查找",
+  "difficulty": "Medium",
+  "description": "在经过某个位置旋转后的升序数组中搜索目标值，返回其索引。不存在返回 -1。要求 O(log n)。",
+  "hint": {
+    "core": "二分时判断哪半边有序，有序半边可直接判断 target 是否在范围内",
+    "keyPoints": [
+      "取 mid 后，比较 nums[lo] 和 nums[mid] 判断左半边是否有序",
+      "左半边有序且 target 在 [lo, mid) 范围内，则 hi = mid-1",
+      "否则搜索右半边；右半边有序同理",
+      "注意边界用 <= 处理重复元素不存在的情况"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "二分查找",
+      "code": "func search(nums []int, target int) int {\n    lo, hi := 0, len(nums)-1\n    for lo <= hi {\n        mid := lo + (hi-lo)/2\n        if nums[mid] == target {\n            return mid\n        }\n        // 左半边有序\n        if nums[lo] <= nums[mid] {\n            if nums[lo] <= target && target < nums[mid] {\n                hi = mid - 1\n            } else {\n                lo = mid + 1\n            }\n        } else { // 右半边有序\n            if nums[mid] < target && target <= nums[hi] {\n                lo = mid + 1\n            } else {\n                hi = mid - 1\n            }\n        }\n    }\n    return -1\n}",
+      "timeComplexity": "O(log n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": 62,
+  "leetcodeId": 51,
+  "title": "N 皇后",
+  "category": "回溯",
+  "difficulty": "Hard",
+  "description": "在 n×n 棋盘上放置 n 个皇后，使得它们彼此不能互相攻击（同行、同列、同对角线），返回所有解法。",
+  "hint": {
+    "core": "逐行放置皇后，用三个集合记录列、主对角线、副对角线的占用状态",
+    "keyPoints": [
+      "逐行决策，每行选一列放置皇后",
+      "列冲突：col 集合；主对角线：row-col 相同；副对角线：row+col 相同",
+      "放置后递归下一行，回溯时撤销标记",
+      "放满 n 行时收集结果"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "回溯",
+      "code": "func solveNQueens(n int) [][]string {\n    var res [][]string\n    queens := make([]int, n) // queens[row] = col\n    cols := make(map[int]bool)\n    diag1 := make(map[int]bool) // row - col\n    diag2 := make(map[int]bool) // row + col\n\n    var backtrack func(row int)\n    backtrack = func(row int) {\n        if row == n {\n            board := make([]string, n)\n            for i, col := range queens {\n                row := make([]byte, n)\n                for j := range row {\n                    row[j] = '.'\n                }\n                row[col] = 'Q'\n                board[i] = string(row)\n            }\n            res = append(res, board)\n            return\n        }\n        for col := 0; col < n; col++ {\n            if cols[col] || diag1[row-col] || diag2[row+col] {\n                continue\n            }\n            queens[row] = col\n            cols[col] = true\n            diag1[row-col] = true\n            diag2[row+col] = true\n            backtrack(row + 1)\n            cols[col] = false\n            diag1[row-col] = false\n            diag2[row+col] = false\n        }\n    }\n    backtrack(0)\n    return res\n}",
+      "timeComplexity": "O(n!)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

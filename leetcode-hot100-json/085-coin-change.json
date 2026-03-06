@@ -1,0 +1,24 @@
+{
+  "id": 85,
+  "leetcodeId": 322,
+  "title": "零钱兑换",
+  "category": "动态规划",
+  "difficulty": "Medium",
+  "description": "给定不同面额的硬币和总金额，计算凑成总金额所需的最少硬币个数。无法凑成返回 -1。",
+  "hint": {
+    "core": "完全背包，dp[i] = min(dp[i], dp[i-coin] + 1)",
+    "keyPoints": [
+      "dp[i] 表示凑出金额 i 所需最少硬币数",
+      "初始化 dp[0]=0，其余为 amount+1（表示不可达）",
+      "枚举每个硬币面值，更新所有可达金额"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "动态规划",
+      "code": "func coinChange(coins []int, amount int) int {\n    dp := make([]int, amount+1)\n    for i := range dp {\n        dp[i] = amount + 1\n    }\n    dp[0] = 0\n    for i := 1; i <= amount; i++ {\n        for _, c := range coins {\n            if c <= i {\n                dp[i] = min(dp[i], dp[i-c]+1)\n            }\n        }\n    }\n    if dp[amount] > amount {\n        return -1\n    }\n    return dp[amount]\n}",
+      "timeComplexity": "O(n*amount)",
+      "spaceComplexity": "O(amount)"
+    }
+  ]
+}

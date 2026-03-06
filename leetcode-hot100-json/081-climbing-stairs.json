@@ -1,0 +1,23 @@
+{
+  "id": 81,
+  "leetcodeId": 70,
+  "title": "爬楼梯",
+  "category": "动态规划",
+  "difficulty": "Easy",
+  "description": "每次可以爬 1 或 2 个台阶，求爬到第 n 阶有多少种不同的方法。",
+  "hint": {
+    "core": "斐波那契数列，到达第 n 阶 = 第 n-1 阶 + 第 n-2 阶",
+    "keyPoints": [
+      "dp[i] = dp[i-1] + dp[i-2]，base case dp[0]=1, dp[1]=1",
+      "只依赖前两个状态，空间可压缩到 O(1)"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "滚动变量",
+      "code": "func climbStairs(n int) int {\n    a, b := 1, 1\n    for i := 2; i <= n; i++ {\n        a, b = b, a+b\n    }\n    return b\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

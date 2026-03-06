@@ -1,0 +1,24 @@
+{
+  "id": 30,
+  "leetcodeId": 24,
+  "title": "两两交换链表中的节点",
+  "category": "链表",
+  "difficulty": "Medium",
+  "description": "两两交换链表中相邻的节点，返回交换后的链表。不能只修改值，必须交换节点。",
+  "hint": {
+    "core": "哨兵节点 + 每次处理两个节点的指针交换",
+    "keyPoints": [
+      "dummy 哨兵简化边界，prev 指向待交换对的前驱",
+      "每轮交换：prev -> first -> second 变为 prev -> second -> first",
+      "prev 前进两步，继续处理下一对"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "迭代",
+      "code": "func swapPairs(head *ListNode) *ListNode {\n    dummy := &ListNode{Next: head}\n    prev := dummy\n    for prev.Next != nil && prev.Next.Next != nil {\n        first := prev.Next\n        second := prev.Next.Next\n\n        first.Next = second.Next\n        second.Next = first\n        prev.Next = second\n\n        prev = first\n    }\n    return dummy.Next\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": 28,
+  "leetcodeId": 2,
+  "title": "两数相加",
+  "category": "链表",
+  "difficulty": "Medium",
+  "description": "两个非空链表表示两个非负整数（逆序存储），将它们相加返回一个同样逆序的链表。",
+  "hint": {
+    "core": "模拟竖式加法，逐位相加并处理进位",
+    "keyPoints": [
+      "同时遍历两链表，逐位相加，carry 记录进位",
+      "当前位值 = (l1.Val + l2.Val + carry) % 10，进位 = / 10",
+      "遍历结束后若 carry > 0，补一个新节点"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "模拟加法",
+      "code": "func addTwoNumbers(l1 *ListNode, l2 *ListNode) *ListNode {\n    dummy := &ListNode{}\n    curr := dummy\n    carry := 0\n    for l1 != nil || l2 != nil || carry > 0 {\n        sum := carry\n        if l1 != nil {\n            sum += l1.Val\n            l1 = l1.Next\n        }\n        if l2 != nil {\n            sum += l2.Val\n            l2 = l2.Next\n        }\n        carry = sum / 10\n        curr.Next = &ListNode{Val: sum % 10}\n        curr = curr.Next\n    }\n    return dummy.Next\n}",
+      "timeComplexity": "O(max(m,n))",
+      "spaceComplexity": "O(max(m,n))"
+    }
+  ]
+}

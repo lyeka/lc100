@@ -1,0 +1,30 @@
+{
+  "id": 84,
+  "leetcodeId": 279,
+  "title": "完全平方数",
+  "category": "动态规划/BFS",
+  "difficulty": "Medium",
+  "description": "给定正整数 n，找到若干个完全平方数使其和等于 n，返回所需的最少完全平方数个数。",
+  "hint": {
+    "core": "完全背包，dp[i] = min(dp[i], dp[i-j*j] + 1)，物品是所有完全平方数",
+    "keyPoints": [
+      "dp[i] 表示凑出 i 所需最少完全平方数",
+      "枚举所有 j*j <= i 的完全平方数作为最后一个",
+      "BFS 解法：从 n 出发，每次减去一个完全平方数，求到 0 的最短路"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "动态规划",
+      "code": "func numSquares(n int) int {\n    dp := make([]int, n+1)\n    for i := 1; i <= n; i++ {\n        dp[i] = i // 最坏情况全用 1\n        for j := 1; j*j <= i; j++ {\n            dp[i] = min(dp[i], dp[i-j*j]+1)\n        }\n    }\n    return dp[n]\n}",
+      "timeComplexity": "O(n*sqrt(n))",
+      "spaceComplexity": "O(n)"
+    },
+    {
+      "name": "BFS",
+      "code": "func numSquares(n int) int {\n    visited := make([]bool, n+1)\n    queue := []int{n}\n    visited[n] = true\n    steps := 0\n    for len(queue) > 0 {\n        steps++\n        size := len(queue)\n        for i := 0; i < size; i++ {\n            cur := queue[i]\n            for j := 1; j*j <= cur; j++ {\n                next := cur - j*j\n                if next == 0 {\n                    return steps\n                }\n                if !visited[next] {\n                    visited[next] = true\n                    queue = append(queue, next)\n                }\n            }\n        }\n        queue = queue[size:]\n    }\n    return n\n}",
+      "timeComplexity": "O(n*sqrt(n))",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

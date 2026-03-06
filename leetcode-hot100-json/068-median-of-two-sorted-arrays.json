@@ -1,0 +1,25 @@
+{
+  "id": 68,
+  "leetcodeId": 4,
+  "title": "寻找两个正序数组的中位数",
+  "category": "二分查找",
+  "difficulty": "Hard",
+  "description": "给定两个正序数组，找出这两个数组合并后的中位数。要求 O(log(m+n))。",
+  "hint": {
+    "core": "在较短数组上二分，找到一个切割位置使左半部分最大值 <= 右半部分最小值",
+    "keyPoints": [
+      "确保在较短数组上二分（减少搜索范围）",
+      "切割位置 i 切分 nums1，j = (m+n+1)/2 - i 切分 nums2",
+      "满足条件：nums1[i-1] <= nums2[j] 且 nums2[j-1] <= nums1[i]",
+      "奇数总长取左半最大值，偶数取左半最大和右半最小的平均"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "二分查找",
+      "code": "func findMedianSortedArrays(nums1 []int, nums2 []int) float64 {\n    // 确保 nums1 是较短的数组\n    if len(nums1) > len(nums2) {\n        return findMedianSortedArrays(nums2, nums1)\n    }\n    m, n := len(nums1), len(nums2)\n    lo, hi := 0, m\n    for lo <= hi {\n        i := (lo + hi) / 2\n        j := (m + n + 1) / 2 - i\n\n        // 边界用极值处理\n        leftMax1 := math.MinInt64\n        if i > 0 {\n            leftMax1 = nums1[i-1]\n        }\n        rightMin1 := math.MaxInt64\n        if i < m {\n            rightMin1 = nums1[i]\n        }\n        leftMax2 := math.MinInt64\n        if j > 0 {\n            leftMax2 = nums2[j-1]\n        }\n        rightMin2 := math.MaxInt64\n        if j < n {\n            rightMin2 = nums2[j]\n        }\n\n        if leftMax1 <= rightMin2 && leftMax2 <= rightMin1 {\n            if (m+n)%2 == 1 {\n                return float64(max(leftMax1, leftMax2))\n            }\n            return float64(max(leftMax1, leftMax2)+min(rightMin1, rightMin2)) / 2.0\n        } else if leftMax1 > rightMin2 {\n            hi = i - 1\n        } else {\n            lo = i + 1\n        }\n    }\n    return 0\n}",
+      "timeComplexity": "O(log(min(m,n)))",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

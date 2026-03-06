@@ -1,0 +1,25 @@
+{
+  "id": 99,
+  "leetcodeId": 31,
+  "title": "下一个排列",
+  "category": "技巧",
+  "difficulty": "Medium",
+  "description": "找出数组在字典序中的下一个更大排列。如果已是最大排列，则重排为最小排列。必须原地修改。",
+  "hint": {
+    "core": "从右往左找第一个下降点 i，再从右找第一个大于 nums[i] 的数交换，最后反转 i+1 之后",
+    "keyPoints": [
+      "从右向左找第一个 nums[i] < nums[i+1] 的位置 i（下降点）",
+      "从右向左找第一个 nums[j] > nums[i] 的位置 j，交换 i 和 j",
+      "反转 i+1 到末尾（从降序变升序，得到最小排列）",
+      "若找不到下降点，说明已是最大排列，整体反转回最小"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "原地操作",
+      "code": "func nextPermutation(nums []int) {\n    n := len(nums)\n    // 从右向左找第一个下降点\n    i := n - 2\n    for i >= 0 && nums[i] >= nums[i+1] {\n        i--\n    }\n    if i >= 0 {\n        // 从右向左找第一个大于 nums[i] 的数\n        j := n - 1\n        for nums[j] <= nums[i] {\n            j--\n        }\n        nums[i], nums[j] = nums[j], nums[i]\n    }\n    // 反转 i+1 到末尾\n    lo, hi := i+1, n-1\n    for lo < hi {\n        nums[lo], nums[hi] = nums[hi], nums[lo]\n        lo++\n        hi--\n    }\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

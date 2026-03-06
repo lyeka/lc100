@@ -1,0 +1,24 @@
+{
+  "id": 42,
+  "leetcodeId": 108,
+  "title": "将有序数组转换为二叉搜索树",
+  "category": "二叉树",
+  "difficulty": "Easy",
+  "description": "将升序排列的有序数组转换为一棵高度平衡的二叉搜索树。",
+  "hint": {
+    "core": "递归取中点建根：有序数组天然对应平衡 BST",
+    "keyPoints": [
+      "每次取中间元素作为当前子树的根",
+      "左半段递归建左子树，右半段递归建右子树",
+      "区间为空时返回 nil"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "递归二分建树",
+      "code": "func sortedArrayToBST(nums []int) *TreeNode {\n    if len(nums) == 0 {\n        return nil\n    }\n    mid := len(nums) / 2\n    return &TreeNode{\n        Val:   nums[mid],\n        Left:  sortedArrayToBST(nums[:mid]),\n        Right: sortedArrayToBST(nums[mid+1:]),\n    }\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(log n)"
+    }
+  ]
+}

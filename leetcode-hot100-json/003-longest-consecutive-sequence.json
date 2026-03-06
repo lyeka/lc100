@@ -1,0 +1,24 @@
+{
+  "id": 3,
+  "leetcodeId": 128,
+  "title": "最长连续序列",
+  "category": "哈希表",
+  "difficulty": "Medium",
+  "description": "给定未排序的整数数组，找出数字连续的最长序列的长度。要求 O(n) 时间复杂度。",
+  "hint": {
+    "core": "哈希集合去重，只从序列起点（num-1 不存在）开始向右扩展计数",
+    "keyPoints": [
+      "将所有数放入 HashSet",
+      "遍历集合，若 num-1 不在集合中，说明 num 是某段连续序列的起点",
+      "从起点开始逐个 +1 检查存在性，记录最大长度"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "哈希集合",
+      "code": "func longestConsecutive(nums []int) int {\n    set := make(map[int]bool, len(nums))\n    for _, v := range nums {\n        set[v] = true\n    }\n    best := 0\n    for v := range set {\n        // 只从序列起点开始扩展，保证总体 O(n)\n        if set[v-1] {\n            continue\n        }\n        length := 1\n        for set[v+length] {\n            length++\n        }\n        if length > best {\n            best = length\n        }\n    }\n    return best\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

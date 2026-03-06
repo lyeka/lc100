@@ -1,0 +1,25 @@
+{
+  "id": 47,
+  "leetcodeId": 105,
+  "title": "从前序与中序遍历序列构造二叉树",
+  "category": "二叉树",
+  "difficulty": "Medium",
+  "description": "根据前序遍历和中序遍历的结果，构造出原始二叉树。",
+  "hint": {
+    "core": "前序首元素是根，在中序中定位根来划分左右子树",
+    "keyPoints": [
+      "前序第一个元素 = 当前根节点",
+      "在中序中找到根的位置，左侧为左子树，右侧为右子树",
+      "用 map 存中序索引，避免每次线性查找",
+      "递归构建，前序索引按 根→左→右 推进"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "递归 + 哈希表",
+      "code": "func buildTree(preorder []int, inorder []int) *TreeNode {\n    idxMap := make(map[int]int, len(inorder))\n    for i, v := range inorder {\n        idxMap[v] = i\n    }\n    preIdx := 0\n    var build func(int, int) *TreeNode\n    build = func(inLeft, inRight int) *TreeNode {\n        if inLeft > inRight {\n            return nil\n        }\n        rootVal := preorder[preIdx]\n        preIdx++\n        root := &TreeNode{Val: rootVal}\n        mid := idxMap[rootVal]\n        // 必须先建左子树，与前序遍历顺序一致\n        root.Left = build(inLeft, mid-1)\n        root.Right = build(mid+1, inRight)\n        return root\n    }\n    return build(0, len(inorder)-1)\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

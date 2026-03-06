@@ -1,0 +1,25 @@
+{
+  "id": 78,
+  "leetcodeId": 55,
+  "title": "跳跃游戏",
+  "category": "贪心",
+  "difficulty": "Medium",
+  "description": "数组每个元素代表在该位置可以跳跃的最大长度，判断是否能到达最后一个下标。",
+  "hint": {
+    "core": "维护能到达的最远位置，遍历时如果当前位置超过最远位置则不可达",
+    "keyPoints": [
+      "维护 maxReach 表示当前能到达的最远索引",
+      "遍历每个位置 i，若 i > maxReach 则无法到达，返回 false",
+      "更新 maxReach = max(maxReach, i + nums[i])",
+      "maxReach >= n-1 时可提前返回 true"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "贪心",
+      "code": "func canJump(nums []int) bool {\n    maxReach := 0\n    for i := 0; i < len(nums); i++ {\n        if i > maxReach {\n            return false\n        }\n        if i+nums[i] > maxReach {\n            maxReach = i + nums[i]\n        }\n    }\n    return true\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

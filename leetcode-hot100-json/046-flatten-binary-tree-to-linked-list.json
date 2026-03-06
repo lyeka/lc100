@@ -1,0 +1,30 @@
+{
+  "id": 46,
+  "leetcodeId": 114,
+  "title": "二叉树展开为链表",
+  "category": "二叉树",
+  "difficulty": "Medium",
+  "description": "将二叉树原地展开为单链表（按先序遍历顺序，全部挂在右子树上）。",
+  "hint": {
+    "core": "前序遍历顺序展平：每个节点的左子树最右节点连接右子树",
+    "keyPoints": [
+      "迭代法：对每个节点，找左子树的最右节点，把右子树挂到最右节点的 right",
+      "然后把左子树移到 right，左置空，移动到下一个节点",
+      "也可后序递归：先展平右、再展平左，用全局 prev 串联"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "迭代原地展平",
+      "code": "func flatten(root *TreeNode) {\n    cur := root\n    for cur != nil {\n        if cur.Left != nil {\n            // 找左子树最右节点\n            rightmost := cur.Left\n            for rightmost.Right != nil {\n                rightmost = rightmost.Right\n            }\n            rightmost.Right = cur.Right\n            cur.Right = cur.Left\n            cur.Left = nil\n        }\n        cur = cur.Right\n    }\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    },
+    {
+      "name": "后序递归",
+      "code": "func flatten(root *TreeNode) {\n    var prev *TreeNode\n    var dfs func(*TreeNode)\n    dfs = func(node *TreeNode) {\n        if node == nil {\n            return\n        }\n        // 逆前序：右 → 左 → 根\n        dfs(node.Right)\n        dfs(node.Left)\n        node.Right = prev\n        node.Left = nil\n        prev = node\n    }\n    dfs(root)\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(h)"
+    }
+  ]
+}

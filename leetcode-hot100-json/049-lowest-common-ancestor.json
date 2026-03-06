@@ -1,0 +1,25 @@
+{
+  "id": 49,
+  "leetcodeId": 236,
+  "title": "二叉树的最近公共祖先",
+  "category": "二叉树",
+  "difficulty": "Medium",
+  "description": "找到二叉树中两个指定节点的最近公共祖先。",
+  "hint": {
+    "core": "后序递归：在左右子树中找 p 和 q，当前节点是汇合点就是 LCA",
+    "keyPoints": [
+      "递归返回值含义：子树中是否包含 p 或 q",
+      "若左右子树各找到一个，当前节点就是 LCA",
+      "若只有一侧找到，向上传递该侧结果",
+      "base case：node == nil 或 node == p 或 node == q 时返回 node"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "后序递归",
+      "code": "func lowestCommonAncestor(root, p, q *TreeNode) *TreeNode {\n    if root == nil || root == p || root == q {\n        return root\n    }\n    left := lowestCommonAncestor(root.Left, p, q)\n    right := lowestCommonAncestor(root.Right, p, q)\n    // 左右都找到，当前节点即 LCA\n    if left != nil && right != nil {\n        return root\n    }\n    if left != nil {\n        return left\n    }\n    return right\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(h)"
+    }
+  ]
+}

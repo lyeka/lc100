@@ -1,0 +1,24 @@
+{
+  "id": 31,
+  "leetcodeId": 25,
+  "title": "K 个一组翻转链表",
+  "category": "链表",
+  "difficulty": "Hard",
+  "description": "每 k 个节点一组进行翻转，不足 k 个的部分保持原样。",
+  "hint": {
+    "core": "分组检测长度 + 组内翻转 + 组间拼接",
+    "keyPoints": [
+      "先检测剩余节点是否 >= k，不足则保持原序",
+      "对每组 k 个节点执行链表翻转（复用 reverse 逻辑）",
+      "用 prev 记录上一组尾部，拼接翻转后的子链"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "迭代分组翻转",
+      "code": "func reverseKGroup(head *ListNode, k int) *ListNode {\n    dummy := &ListNode{Next: head}\n    prev := dummy\n\n    for {\n        // 检查剩余节点是否 >= k\n        check := prev\n        for i := 0; i < k; i++ {\n            check = check.Next\n            if check == nil {\n                return dummy.Next\n            }\n        }\n\n        // 翻转 k 个节点\n        curr := prev.Next\n        for i := 1; i < k; i++ {\n            next := curr.Next\n            curr.Next = next.Next\n            next.Next = prev.Next\n            prev.Next = next\n        }\n        prev = curr\n    }\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": 65,
+  "leetcodeId": 34,
+  "title": "在排序数组中查找元素的第一个和最后一个位置",
+  "category": "二分查找",
+  "difficulty": "Medium",
+  "description": "给定升序数组和目标值，找出目标值在数组中的起始和结束位置。不存在返回 [-1,-1]。要求 O(log n)。",
+  "hint": {
+    "core": "两次二分：一次找左边界（第一个 >= target），一次找右边界（最后一个 <= target）",
+    "keyPoints": [
+      "找左边界：nums[mid] < target 时 lo = mid+1，否则 hi = mid-1，结束后 lo 是左边界",
+      "找右边界：nums[mid] <= target 时 lo = mid+1，否则 hi = mid-1，结束后 hi 是右边界",
+      "检查边界合法性：lo <= hi 且 nums[lo] == target"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "两次二分",
+      "code": "func searchRange(nums []int, target int) []int {\n    left := lowerBound(nums, target)\n    right := upperBound(nums, target)\n    if left > right {\n        return []int{-1, -1}\n    }\n    return []int{left, right}\n}\n\nfunc lowerBound(nums []int, target int) int {\n    lo, hi := 0, len(nums)-1\n    for lo <= hi {\n        mid := lo + (hi-lo)/2\n        if nums[mid] < target {\n            lo = mid + 1\n        } else {\n            hi = mid - 1\n        }\n    }\n    return lo\n}\n\nfunc upperBound(nums []int, target int) int {\n    lo, hi := 0, len(nums)-1\n    for lo <= hi {\n        mid := lo + (hi-lo)/2\n        if nums[mid] <= target {\n            lo = mid + 1\n        } else {\n            hi = mid - 1\n        }\n    }\n    return hi\n}",
+      "timeComplexity": "O(log n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

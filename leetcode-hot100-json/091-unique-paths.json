@@ -1,0 +1,30 @@
+{
+  "id": 91,
+  "leetcodeId": 62,
+  "title": "不同路径",
+  "category": "多维动态规划",
+  "difficulty": "Medium",
+  "description": "机器人在 m*n 网格左上角，每次只能向下或向右移动一步，求到达右下角共有多少条不同路径。",
+  "hint": {
+    "core": "网格 DP，dp[i][j] = dp[i-1][j] + dp[i][j-1]，只能向右或向下",
+    "keyPoints": [
+      "第一行和第一列全为 1（只有一种走法）",
+      "可用一维数组滚动优化：dp[j] += dp[j-1]",
+      "也可用组合数 C(m+n-2, m-1) 直接计算"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "一维滚动 DP",
+      "code": "func uniquePaths(m int, n int) int {\n    dp := make([]int, n)\n    for j := range dp {\n        dp[j] = 1\n    }\n    for i := 1; i < m; i++ {\n        for j := 1; j < n; j++ {\n            dp[j] += dp[j-1]\n        }\n    }\n    return dp[n-1]\n}",
+      "timeComplexity": "O(m*n)",
+      "spaceComplexity": "O(n)"
+    },
+    {
+      "name": "组合数学",
+      "code": "func uniquePaths(m int, n int) int {\n    // C(m+n-2, m-1)\n    res := 1\n    for i := 0; i < m-1; i++ {\n        res = res * (m + n - 2 - i) / (i + 1)\n    }\n    return res\n}",
+      "timeComplexity": "O(min(m,n))",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

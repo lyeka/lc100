@@ -1,0 +1,24 @@
+{
+  "id": 63,
+  "leetcodeId": 35,
+  "title": "搜索插入位置",
+  "category": "二分查找",
+  "difficulty": "Easy",
+  "description": "给定排序数组和目标值，找到目标值的索引；如果不存在，返回它应该被插入的位置。要求 O(log n)。",
+  "hint": {
+    "core": "标准二分查找，找第一个 >= target 的位置",
+    "keyPoints": [
+      "左闭右闭二分，lo=0, hi=len-1",
+      "nums[mid] < target 时 lo = mid+1，否则 hi = mid-1",
+      "循环结束后 lo 即为插入位置"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "二分查找",
+      "code": "func searchInsert(nums []int, target int) int {\n    lo, hi := 0, len(nums)-1\n    for lo <= hi {\n        mid := lo + (hi-lo)/2\n        if nums[mid] < target {\n            lo = mid + 1\n        } else {\n            hi = mid - 1\n        }\n    }\n    return lo\n}",
+      "timeComplexity": "O(log n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

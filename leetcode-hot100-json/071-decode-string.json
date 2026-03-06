@@ -1,0 +1,25 @@
+{
+  "id": 71,
+  "leetcodeId": 394,
+  "title": "字符串解码",
+  "category": "栈",
+  "difficulty": "Medium",
+  "description": "给定编码字符串如 \"3[a2[c]]\"，返回解码后的字符串 \"accaccacc\"。",
+  "hint": {
+    "core": "用两个栈分别存数字和字符串，遇到 ] 时弹出拼接",
+    "keyPoints": [
+      "遇到数字：累积多位数字",
+      "遇到 `[`：当前字符串和数字分别入栈，重置",
+      "遇到 `]`：弹出数字 k 和之前的字符串，拼接 prev + cur*k",
+      "遇到字母：追加到当前字符串"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "双栈",
+      "code": "func decodeString(s string) string {\n    numStack := []int{}\n    strStack := []string{}\n    cur := \"\"\n    num := 0\n\n    for _, ch := range s {\n        switch {\n        case ch >= '0' && ch <= '9':\n            num = num*10 + int(ch-'0')\n        case ch == '[':\n            numStack = append(numStack, num)\n            strStack = append(strStack, cur)\n            num = 0\n            cur = \"\"\n        case ch == ']':\n            k := numStack[len(numStack)-1]\n            numStack = numStack[:len(numStack)-1]\n            prev := strStack[len(strStack)-1]\n            strStack = strStack[:len(strStack)-1]\n            cur = prev + strings.Repeat(cur, k)\n        default:\n            cur += string(ch)\n        }\n    }\n    return cur\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

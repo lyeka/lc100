@@ -1,0 +1,30 @@
+{
+  "id": 74,
+  "leetcodeId": 215,
+  "title": "数组中的第 K 个最大元素",
+  "category": "堆",
+  "difficulty": "Medium",
+  "description": "找到数组中第 k 个最大的元素（排序后从大到小第 k 个）。",
+  "hint": {
+    "core": "快速选择算法（partition）或小顶堆维护 k 个最大元素",
+    "keyPoints": [
+      "快速选择：随机选 pivot，partition 后判断 pivot 位置与 k 的关系",
+      "小顶堆：维护大小为 k 的小顶堆，堆顶即第 k 大",
+      "快速选择平均 O(n)，最坏 O(n^2)；堆解法稳定 O(n log k)"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "快速选择",
+      "code": "func findKthLargest(nums []int, k int) int {\n    // 第 k 大 = 第 n-k 小（0-indexed）\n    target := len(nums) - k\n    lo, hi := 0, len(nums)-1\n\n    for lo < hi {\n        pivotIdx := partition(nums, lo, hi)\n        if pivotIdx == target {\n            return nums[pivotIdx]\n        } else if pivotIdx < target {\n            lo = pivotIdx + 1\n        } else {\n            hi = pivotIdx - 1\n        }\n    }\n    return nums[lo]\n}\n\nfunc partition(nums []int, lo, hi int) int {\n    // 随机选 pivot 避免最坏情况\n    rand := lo + rand.Intn(hi-lo+1)\n    nums[rand], nums[hi] = nums[hi], nums[rand]\n\n    pivot := nums[hi]\n    i := lo\n    for j := lo; j < hi; j++ {\n        if nums[j] <= pivot {\n            nums[i], nums[j] = nums[j], nums[i]\n            i++\n        }\n    }\n    nums[i], nums[hi] = nums[hi], nums[i]\n    return i\n}",
+      "timeComplexity": "O(n log k)",
+      "spaceComplexity": "O(k)"
+    },
+    {
+      "name": "小顶堆",
+      "code": "func findKthLargest(nums []int, k int) int {\n    h := &IntHeap{}\n    heap.Init(h)\n    for _, v := range nums {\n        heap.Push(h, v)\n        if h.Len() > k {\n            heap.Pop(h)\n        }\n    }\n    return (*h)[0]\n}\n\ntype IntHeap []int\n\nfunc (h IntHeap) Len() int           { return len(h) }\nfunc (h IntHeap) Less(i, j int) bool { return h[i] < h[j] }\nfunc (h IntHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }\nfunc (h *IntHeap) Push(x any)        { *h = append(*h, x.(int)) }\nfunc (h *IntHeap) Pop() any {\n    old := *h\n    n := len(old)\n    x := old[n-1]\n    *h = old[:n-1]\n    return x\n}",
+      "timeComplexity": "O(n log k)",
+      "spaceComplexity": "O(k)"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": 89,
+  "leetcodeId": 416,
+  "title": "分割等和子集",
+  "category": "动态规划/背包",
+  "difficulty": "Medium",
+  "description": "给定只含正整数的非空数组，判断是否可以将数组分割成两个子集，使两个子集的元素和相等。",
+  "hint": {
+    "core": "0-1 背包，判断能否从数组中选子集使和 = totalSum/2",
+    "keyPoints": [
+      "总和为奇数直接返回 false",
+      "target = sum/2，转化为 0-1 背包问题",
+      "dp[j] 表示能否恰好凑出和为 j，倒序遍历避免重复选取"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "一维背包",
+      "code": "func canPartition(nums []int) bool {\n    sum := 0\n    for _, n := range nums {\n        sum += n\n    }\n    if sum%2 != 0 {\n        return false\n    }\n    target := sum / 2\n    dp := make([]bool, target+1)\n    dp[0] = true\n    for _, n := range nums {\n        // 倒序遍历，确保每个元素只用一次\n        for j := target; j >= n; j-- {\n            dp[j] = dp[j] || dp[j-n]\n        }\n    }\n    return dp[target]\n}",
+      "timeComplexity": "O(n*target)",
+      "spaceComplexity": "O(target)"
+    }
+  ]
+}

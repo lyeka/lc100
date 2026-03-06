@@ -1,0 +1,30 @@
+{
+  "id": 23,
+  "leetcodeId": 206,
+  "title": "反转链表",
+  "category": "链表",
+  "difficulty": "Easy",
+  "description": "反转单链表，返回反转后的链表头。",
+  "hint": {
+    "core": "迭代法用 prev 指针逐个翻转 next 方向",
+    "keyPoints": [
+      "维护 prev、curr 两个指针，每次将 curr.Next 指向 prev",
+      "翻转前先保存 curr.Next，防止断链",
+      "循环结束时 prev 即为新头节点"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "迭代",
+      "code": "func reverseList(head *ListNode) *ListNode {\n    var prev *ListNode\n    curr := head\n    for curr != nil {\n        next := curr.Next\n        curr.Next = prev\n        prev = curr\n        curr = next\n    }\n    return prev\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    },
+    {
+      "name": "递归",
+      "code": "func reverseList(head *ListNode) *ListNode {\n    if head == nil || head.Next == nil {\n        return head\n    }\n    newHead := reverseList(head.Next)\n    head.Next.Next = head\n    head.Next = nil\n    return newHead\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

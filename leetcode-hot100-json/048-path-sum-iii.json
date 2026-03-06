@@ -1,0 +1,25 @@
+{
+  "id": 48,
+  "leetcodeId": 437,
+  "title": "路径总和 III",
+  "category": "二叉树/前缀和",
+  "difficulty": "Medium",
+  "description": "找出二叉树中路径和等于目标值的路径数量。路径方向必须向下，但不需要从根开始或在叶子结束。",
+  "hint": {
+    "core": "前缀和 + DFS：路径和等于 targetSum 等价于两个前缀和之差等于 target",
+    "keyPoints": [
+      "DFS 遍历时维护从根到当前节点的前缀和 `curSum`",
+      "用哈希表记录路径上每个前缀和出现次数",
+      "`curSum - targetSum` 在哈希表中的次数就是以当前节点结尾的合法路径数",
+      "回溯时撤销当前前缀和"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "前缀和 + DFS",
+      "code": "func pathSum(root *TreeNode, targetSum int) int {\n    prefixCount := map[int64]int{0: 1} // 空路径前缀和为 0\n    var res int\n    var dfs func(*TreeNode, int64)\n    dfs = func(node *TreeNode, curSum int64) {\n        if node == nil {\n            return\n        }\n        curSum += int64(node.Val)\n        res += prefixCount[curSum-int64(targetSum)]\n        prefixCount[curSum]++\n        dfs(node.Left, curSum)\n        dfs(node.Right, curSum)\n        // 回溯：离开当前节点，撤销前缀和\n        prefixCount[curSum]--\n    }\n    dfs(root, 0)\n    return res\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": 97,
+  "leetcodeId": 169,
+  "title": "多数元素",
+  "category": "技巧/投票",
+  "difficulty": "Easy",
+  "description": "给定大小为 n 的数组，找出其中出现次数超过 n/2 的元素（多数元素）。",
+  "hint": {
+    "core": "Boyer-Moore 投票法，候选人计数为 0 时换人，最终幸存者即多数元素",
+    "keyPoints": [
+      "维护 candidate 和 count",
+      "遇到相同数 count++，不同数 count--",
+      "count 降到 0 时更换 candidate",
+      "多数元素出现超过 n/2 次，保证最终幸存"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "Boyer-Moore 投票",
+      "code": "func majorityElement(nums []int) int {\n    candidate, count := 0, 0\n    for _, n := range nums {\n        if count == 0 {\n            candidate = n\n        }\n        if n == candidate {\n            count++\n        } else {\n            count--\n        }\n    }\n    return candidate\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

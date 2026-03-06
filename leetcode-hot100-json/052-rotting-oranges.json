@@ -1,0 +1,24 @@
+{
+  "id": 52,
+  "leetcodeId": 994,
+  "title": "腐烂的橘子",
+  "category": "图论/BFS",
+  "difficulty": "Medium",
+  "description": "每分钟腐烂橘子会让四方向相邻的新鲜橘子腐烂，返回所有橘子都腐烂所需的最少分钟数。无法全部腐烂返回 -1。",
+  "hint": {
+    "core": "多源 BFS：所有腐烂橘子同时入队，逐层扩散，最后检查是否还有新鲜橘子",
+    "keyPoints": [
+      "初始扫描：所有值为 2 的格子入队，统计新鲜橘子数 `fresh`",
+      "BFS 逐层扩散，每感染一个新鲜橘子 `fresh--`",
+      "队列为空时，若 `fresh > 0` 返回 -1，否则返回层数"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "多源 BFS",
+      "code": "func orangesRotting(grid [][]int) int {\n    m, n := len(grid), len(grid[0])\n    queue := [][2]int{}\n    fresh := 0\n    for i := 0; i < m; i++ {\n        for j := 0; j < n; j++ {\n            if grid[i][j] == 2 {\n                queue = append(queue, [2]int{i, j})\n            } else if grid[i][j] == 1 {\n                fresh++\n            }\n        }\n    }\n    if fresh == 0 {\n        return 0\n    }\n    dirs := [4][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}\n    minutes := 0\n    for len(queue) > 0 {\n        size := len(queue)\n        for i := 0; i < size; i++ {\n            cell := queue[0]\n            queue = queue[1:]\n            for _, d := range dirs {\n                ni, nj := cell[0]+d[0], cell[1]+d[1]\n                if ni >= 0 && ni < m && nj >= 0 && nj < n && grid[ni][nj] == 1 {\n                    grid[ni][nj] = 2\n                    fresh--\n                    queue = append(queue, [2]int{ni, nj})\n                }\n            }\n        }\n        minutes++\n    }\n    if fresh > 0 {\n        return -1\n    }\n    return minutes - 1 // 最后一轮无新感染，减 1\n}",
+      "timeComplexity": "O(m*n)",
+      "spaceComplexity": "O(m*n)"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": 57,
+  "leetcodeId": 17,
+  "title": "电话号码的字母组合",
+  "category": "回溯",
+  "difficulty": "Medium",
+  "description": "给定仅包含数字 2-9 的字符串，返回所有可能的字母组合（手机九宫格键盘映射）。",
+  "hint": {
+    "core": "回溯逐位拼接：每个数字对应几个字母，逐位选择一个字母拼入路径",
+    "keyPoints": [
+      "建立数字到字母的映射表",
+      "递归深度 = digits 长度，每层从当前数字对应的字母中选一个",
+      "path 长度等于 digits 长度时收集结果"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "回溯",
+      "code": "func letterCombinations(digits string) []string {\n    if len(digits) == 0 {\n        return nil\n    }\n    phone := [10]string{\n        \"\", \"\", \"abc\", \"def\", \"ghi\", \"jkl\",\n        \"mno\", \"pqrs\", \"tuv\", \"wxyz\",\n    }\n    var res []string\n    var path []byte\n    var backtrack func(int)\n    backtrack = func(idx int) {\n        if idx == len(digits) {\n            res = append(res, string(path))\n            return\n        }\n        letters := phone[digits[idx]-'0']\n        for i := 0; i < len(letters); i++ {\n            path = append(path, letters[i])\n            backtrack(idx + 1)\n            path = path[:len(path)-1]\n        }\n    }\n    backtrack(0)\n    return res\n}",
+      "timeComplexity": "O(4^n * n)",
+      "spaceComplexity": "O(n)"
+    }
+  ]
+}

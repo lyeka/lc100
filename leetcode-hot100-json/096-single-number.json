@@ -1,0 +1,23 @@
+{
+  "id": 96,
+  "leetcodeId": 136,
+  "title": "只出现一次的数字",
+  "category": "技巧/位运算",
+  "difficulty": "Easy",
+  "description": "数组中每个元素都出现两次，只有一个元素出现一次。找出那个只出现一次的元素。要求线性时间、不使用额外空间。",
+  "hint": {
+    "core": "异或运算，a ^ a = 0, a ^ 0 = a，全部异或后剩下的就是单独的数",
+    "keyPoints": [
+      "异或满足交换律和结合律，相同数字异或抵消",
+      "不需要额外空间，一次遍历搞定"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "异或",
+      "code": "func singleNumber(nums []int) int {\n    res := 0\n    for _, n := range nums {\n        res ^= n\n    }\n    return res\n}",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": 64,
+  "leetcodeId": 74,
+  "title": "搜索二维矩阵",
+  "category": "二分查找",
+  "difficulty": "Medium",
+  "description": "在每行升序且下一行首元素大于上一行末元素的 m×n 矩阵中，判断目标值是否存在。",
+  "hint": {
+    "core": "将二维矩阵视为一维有序数组，一次二分搞定",
+    "keyPoints": [
+      "矩阵 m*n 展开为长度 m*n 的一维数组",
+      "一维索引 mid 映射回二维：row = mid/n, col = mid%n",
+      "标准二分查找 target"
+    ]
+  },
+  "solutions": [
+    {
+      "name": "二分查找",
+      "code": "func searchMatrix(matrix [][]int, target int) bool {\n    m, n := len(matrix), len(matrix[0])\n    lo, hi := 0, m*n-1\n    for lo <= hi {\n        mid := lo + (hi-lo)/2\n        val := matrix[mid/n][mid%n]\n        if val == target {\n            return true\n        } else if val < target {\n            lo = mid + 1\n        } else {\n            hi = mid - 1\n        }\n    }\n    return false\n}",
+      "timeComplexity": "O(log(m*n))",
+      "spaceComplexity": "O(1)"
+    }
+  ]
+}
