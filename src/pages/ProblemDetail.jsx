@@ -1,18 +1,15 @@
 /**
  * [INPUT]: react-router (useParams, Link), @/data/problems, @/components/CodeBlock,
- *          @/components/ui/card, badge, button, tabs, accordion, separator, lucide-react
- * [OUTPUT]: ProblemDetail 题目详情页
+ *          @/components/ui/button, tabs, accordion, lucide-react
+ * [OUTPUT]: ProblemDetail 古典书籍章节阅读页
  * [POS]: 路由 /problem/:id，全站阅读体验核心
- *        阅读节奏：标题 → 描述(折叠) → 核心思路(突出) → 关键步骤(渐进) → 代码(高亮) → 导航
+ *        阅读节奏：章节标题 → 描述(折叠) → · · · → 核心思路(引用体) → · · · → 关键步骤(中文数字) → · · · → 代码 → 导航
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useParams, Link } from 'react-router'
-import { problems, problemMap } from '@/data/problems'
+import { problemMap } from '@/data/problems'
 import { CodeBlock } from '@/components/CodeBlock'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Accordion,
@@ -20,21 +17,25 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
-import {
-  ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
-  Lightbulb,
-  ListOrdered,
-  Clock,
-  HardDrive,
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+
+/* ── 中文数字 ── */
+const CN_NUM = ['一','二','三','四','五','六','七','八','九','十','十一','十二']
 
 /* ── 难度颜色 ── */
-const DIFF = {
-  Easy:   'bg-chart-3/15 text-chart-3 border border-chart-3/30',
-  Medium: 'bg-chart-4/15 text-chart-4 border border-chart-4/30',
-  Hard:   'bg-destructive/15 text-destructive border border-destructive/30',
+const DIFF_COLOR = {
+  Easy:   'text-chart-3',
+  Medium: 'text-chart-4',
+  Hard:   'text-destructive',
+}
+
+/* ── 古典分隔符 ── */
+function Divider() {
+  return (
+    <div className="py-6 text-center text-muted-foreground/40 tracking-[0.5em] text-sm select-none">
+      ·　·　·
+    </div>
+  )
 }
 
 export function ProblemDetail() {
@@ -45,10 +46,10 @@ export function ProblemDetail() {
   /* ── 404 ── */
   if (!problem) {
     return (
-      <main className="mx-auto max-w-4xl px-6 py-20 text-center">
+      <main className="mx-auto max-w-3xl px-6 py-20 text-center">
         <p className="text-lg text-muted-foreground">题目不存在</p>
         <Link to="/">
-          <Button variant="outline" className="mt-4">返回题库</Button>
+          <Button variant="outline" className="mt-4">返回目录</Button>
         </Link>
       </main>
     )
@@ -58,142 +59,130 @@ export function ProblemDetail() {
   const next = problemMap.get(numId + 1)
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8 space-y-8">
+    <main className="mx-auto max-w-3xl px-6 py-8">
 
       {/* ════════════════════════════════════════
-         顶部导航：返回 + 上下题
+         顶部导航
          ════════════════════════════════════════ */}
-      <div className="flex items-center justify-between">
-        <Link to="/">
-          <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground">
-            <ArrowLeft className="size-4" />
-            题库
-          </Button>
+      <div className="flex items-center justify-between mb-8">
+        <Link to="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+          ← 目录
         </Link>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
           {prev ? (
-            <Link to={`/problem/${prev.id}`}>
-              <Button variant="ghost" size="sm" className="gap-1">
-                <ChevronLeft className="size-4" />
-                #{String(prev.id).padStart(3, '0')}
-              </Button>
+            <Link to={`/problem/${prev.id}`} className="hover:text-primary transition-colors">
+              #{String(prev.id).padStart(3, '0')}
             </Link>
           ) : (
-            <Button variant="ghost" size="sm" disabled className="gap-1">
-              <ChevronLeft className="size-4" />
-            </Button>
+            <span className="opacity-30">···</span>
           )}
+          <span className="text-border">/</span>
           {next ? (
-            <Link to={`/problem/${next.id}`}>
-              <Button variant="ghost" size="sm" className="gap-1">
-                #{String(next.id).padStart(3, '0')}
-                <ChevronRight className="size-4" />
-              </Button>
+            <Link to={`/problem/${next.id}`} className="hover:text-primary transition-colors">
+              #{String(next.id).padStart(3, '0')}
             </Link>
           ) : (
-            <Button variant="ghost" size="sm" disabled className="gap-1">
-              <ChevronRight className="size-4" />
-            </Button>
+            <span className="opacity-30">···</span>
           )}
         </div>
       </div>
 
       {/* ════════════════════════════════════════
-         标题区：题号 · 标题 + 难度 + 分类 + LC 编号
+         章节标题区 — 居中，仪式感
          ════════════════════════════════════════ */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          #{String(problem.id).padStart(3, '0')} · {problem.title}
-        </h1>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Badge className={DIFF[problem.difficulty]}>{problem.difficulty}</Badge>
-          <Badge variant="outline">{problem.category}</Badge>
-          <span className="text-xs text-muted-foreground">
-            LeetCode #{problem.leetcodeId}
-          </span>
+      <div className="border-y border-border py-10 mb-8">
+        <div className="text-center space-y-4">
+          {/* CHAPTER 编号 */}
+          <div className="text-[11px] uppercase tracking-[0.4em] text-muted-foreground">
+            Chapter {String(problem.id).padStart(3, '0')}
+          </div>
+
+          {/* 标题 */}
+          <h1 className="text-2xl tracking-wide text-foreground">
+            {problem.title}
+          </h1>
+
+          {/* 元信息 */}
+          <div className="text-sm text-muted-foreground tracking-wider">
+            {problem.category}
+            <span className="mx-2">·</span>
+            <span className={DIFF_COLOR[problem.difficulty]}>{problem.difficulty}</span>
+            <span className="mx-2">·</span>
+            LC #{problem.leetcodeId}
+          </div>
         </div>
       </div>
 
-      <Separator />
-
       {/* ════════════════════════════════════════
-         题目描述 — 默认折叠（复习者通常已知题意）
+         题目描述 — 折叠（复习者通常已知题意）
          ════════════════════════════════════════ */}
       <Accordion type="single" collapsible>
         <AccordionItem value="description" className="border-none">
-          <AccordionTrigger className="py-3 text-sm font-medium text-muted-foreground hover:text-foreground">
+          <AccordionTrigger className="py-3 text-sm text-muted-foreground hover:text-foreground justify-center gap-2">
             题目描述
           </AccordionTrigger>
           <AccordionContent>
-            <div className="whitespace-pre-line text-sm text-foreground/90 leading-relaxed">
+            <div className="whitespace-pre-line text-sm text-foreground/80 leading-loose px-4">
               {problem.description}
             </div>
           </AccordionContent>
         </AccordionItem>
       </Accordion>
 
+      <Divider />
+
       {/* ════════════════════════════════════════
-         核心思路 — 最大视觉权重，elevated Card
-         这是用户来这个网站的原因
+         核心思路 — 引用体排版
          ════════════════════════════════════════ */}
       <section>
-        <div className="flex items-center gap-2 mb-3">
-          <Lightbulb className="size-4 text-primary" />
-          <h2 className="text-base font-semibold text-foreground">核心思路</h2>
+        <h2 className="text-center text-sm tracking-[0.3em] text-foreground mb-6">
+          核 心 思 路
+        </h2>
+        <div className="px-8 sm:px-12">
+          <p className="text-sm text-foreground/90 leading-loose text-center">
+            <span className="text-primary/50">「</span>
+            {problem.hint.core}
+            <span className="text-primary/50">」</span>
+          </p>
         </div>
-        <Card variant="elevated" className="border-primary/20">
-          <CardContent className="pt-5">
-            <p className="text-sm text-foreground leading-relaxed">
-              {problem.hint.core}
-            </p>
-          </CardContent>
-        </Card>
       </section>
 
+      <Divider />
+
       {/* ════════════════════════════════════════
-         关键步骤 — Accordion 渐进展开
+         关键步骤 — 中文数字，直接展示
          ════════════════════════════════════════ */}
       <section>
-        <div className="flex items-center gap-2 mb-3">
-          <ListOrdered className="size-4 text-primary" />
-          <h2 className="text-base font-semibold text-foreground">关键步骤</h2>
-        </div>
-        <Accordion type="single" collapsible defaultValue="steps">
-          <AccordionItem value="steps" className="border-none">
-            <AccordionTrigger className="py-2 text-sm text-muted-foreground hover:text-foreground">
-              {problem.hint.keyPoints.length} 个步骤
-            </AccordionTrigger>
-            <AccordionContent>
-              <ol className="space-y-2 text-sm text-foreground/90">
-                {problem.hint.keyPoints.map((point, i) => (
-                  <li key={i} className="flex gap-3">
-                    <span className="flex-none text-xs font-mono text-primary mt-0.5">
-                      {i + 1}.
-                    </span>
-                    <span className="leading-relaxed">{point}</span>
-                  </li>
-                ))}
-              </ol>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+        <h2 className="text-center text-sm tracking-[0.3em] text-foreground mb-6">
+          关 键 步 骤
+        </h2>
+        <ol className="space-y-3 px-4 sm:px-8">
+          {problem.hint.keyPoints.map((point, i) => (
+            <li key={i} className="flex gap-3 text-sm">
+              <span className="flex-none text-primary/70 mt-px">
+                {CN_NUM[i] || i + 1}、
+              </span>
+              <span className="text-foreground/85 leading-relaxed">{point}</span>
+            </li>
+          ))}
+        </ol>
       </section>
 
-      <Separator />
+      <Divider />
 
       {/* ════════════════════════════════════════
-         代码实现 — Tabs 切换多解法 + CodeBlock 高亮
+         代码实现
          ════════════════════════════════════════ */}
       <section>
-        <h2 className="text-base font-semibold text-foreground mb-4">解法</h2>
+        <h2 className="text-center text-sm tracking-[0.3em] text-foreground mb-6">
+          解　法
+        </h2>
 
         {problem.solutions.length === 1 ? (
-          /* 单解法：直接展示 */
           <SolutionBlock solution={problem.solutions[0]} />
         ) : (
-          /* 多解法：Tabs 切换 */
           <Tabs defaultValue="0">
-            <TabsList>
+            <TabsList className="mx-auto w-fit">
               {problem.solutions.map((sol, i) => (
                 <TabsTrigger key={i} value={String(i)}>{sol.name}</TabsTrigger>
               ))}
@@ -207,57 +196,47 @@ export function ProblemDetail() {
         )}
       </section>
 
-      <Separator />
-
       {/* ════════════════════════════════════════
-         底部导航：prev / next
+         底部导航
          ════════════════════════════════════════ */}
-      <nav className="flex items-center justify-between py-4">
-        {prev ? (
-          <Link to={`/problem/${prev.id}`} className="group">
-            <div className="text-xs text-muted-foreground mb-1">上一题</div>
-            <div className="flex items-center gap-1.5 text-sm font-medium text-foreground group-hover:text-primary transition-colors">
+      <div className="mt-12 border-t border-border pt-6">
+        <nav className="flex items-center justify-between">
+          {prev ? (
+            <Link to={`/problem/${prev.id}`} className="group flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors">
               <ChevronLeft className="size-4" />
-              #{String(prev.id).padStart(3, '0')} {prev.title}
-            </div>
-          </Link>
-        ) : <div />}
-        {next ? (
-          <Link to={`/problem/${next.id}`} className="group text-right">
-            <div className="text-xs text-muted-foreground mb-1">下一题</div>
-            <div className="flex items-center gap-1.5 text-sm font-medium text-foreground group-hover:text-primary transition-colors">
-              #{String(next.id).padStart(3, '0')} {next.title}
+              <span>#{String(prev.id).padStart(3, '0')} {prev.title}</span>
+            </Link>
+          ) : <div />}
+          {next ? (
+            <Link to={`/problem/${next.id}`} className="group flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors">
+              <span>#{String(next.id).padStart(3, '0')} {next.title}</span>
               <ChevronRight className="size-4" />
-            </div>
-          </Link>
-        ) : <div />}
-      </nav>
-
+            </Link>
+          ) : <div />}
+        </nav>
+      </div>
     </main>
   )
 }
 
 /* ════════════════════════════════════════
-   单个解法区块：名称 + 复杂度 + 代码
+   单个解法：名称 + 代码 + 复杂度（居中）
    ════════════════════════════════════════ */
 function SolutionBlock({ solution }) {
   return (
-    <div className="space-y-3">
-      {/* 解法名 + 复杂度 */}
-      <div className="flex flex-wrap items-center gap-4 text-sm">
-        <span className="font-medium text-foreground">{solution.name}</span>
-        <div className="flex items-center gap-1 text-muted-foreground">
-          <Clock className="size-3.5" />
-          <span>时间 {solution.timeComplexity}</span>
-        </div>
-        <div className="flex items-center gap-1 text-muted-foreground">
-          <HardDrive className="size-3.5" />
-          <span>空间 {solution.spaceComplexity}</span>
-        </div>
+    <div className="space-y-4">
+      {/* 解法名 */}
+      <div className="text-center text-sm text-muted-foreground">
+        {solution.name}
       </div>
 
       {/* 代码 */}
       <CodeBlock code={solution.code} />
+
+      {/* 复杂度 — 居中，小号 */}
+      <div className="text-center text-xs text-muted-foreground tracking-wider">
+        时间 {solution.timeComplexity}　·　空间 {solution.spaceComplexity}
+      </div>
     </div>
   )
 }
