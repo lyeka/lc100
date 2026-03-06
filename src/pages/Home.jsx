@@ -1,14 +1,14 @@
 /**
- * [INPUT]: react-router (useSearchParams, Link), @/data/problems, @/components/ui/badge
+ * [INPUT]: react-router (useSearchParams, Link), react (useState), @/data/problems
  * [OUTPUT]: Home 首页 — 古典书籍目录页
- * [POS]: 路由 /，全站入口，按分类分组的 Table of Contents
+ * [POS]: 路由 /，全站入口，按分类分组的 Table of Contents，纯文字筛选
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router'
 import { problems, categories } from '@/data/problems'
-import { Badge } from '@/components/ui/badge'
 
-/* ── 罗马数字转换 ── */
+/* ── 罗马数字 ── */
 const ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV']
 
 /* ── 难度颜色 — 皮革书脊调性 ── */
@@ -18,19 +18,13 @@ const DIFF_COLOR = {
   Hard:   'text-destructive',
 }
 
-/* ── 筛选栏难度样式 ── */
-const DIFF_STYLE = {
-  Easy:   'bg-chart-3/15 text-chart-3 border border-chart-3/30',
-  Medium: 'bg-chart-4/15 text-chart-4 border border-chart-4/30',
-  Hard:   'bg-destructive/15 text-destructive border border-destructive/30',
-}
-
 const DIFFICULTIES = ['Easy', 'Medium', 'Hard']
 
 export function Home() {
   const [params, setParams] = useSearchParams()
   const activeCategory   = params.get('category') || ''
   const activeDifficulty = params.get('difficulty') || ''
+  const [catOpen, setCatOpen] = useState(false)
 
   /* ── 筛选 ── */
   const filtered = problems.filter(p => {
@@ -74,47 +68,73 @@ export function Home() {
           <span className="text-primary">✦</span>
           <span>─────────</span>
         </div>
-        {/* <p className="text-sm text-muted-foreground">
-          Go 语言题解 · {problems.length} 道题 · {categories.length} 个算法分类
-        </p> */}
       </div>
 
       {/* ════════════════════════════════════════
-         筛选栏
+         筛选栏 — 纯文字，古典索引风格
          ════════════════════════════════════════ */}
-      <div className="mb-12 space-y-4">
-        <div className="flex flex-wrap gap-2 justify-center">
-          <Badge
-            variant={activeCategory === '' ? 'default' : 'outline'}
-            className="cursor-pointer"
-            onClick={() => toggle('category', activeCategory)}
-          >
-            全部
-          </Badge>
-          {categories.map(cat => (
-            <Badge
-              key={cat}
-              variant={activeCategory === cat ? 'default' : 'outline'}
-              className="cursor-pointer"
-              onClick={() => toggle('category', cat)}
-            >
-              {cat}
-            </Badge>
+      <div className="mb-12 text-center space-y-4">
+
+        {/* 难度筛选：3 个文字链 */}
+        <div className="flex items-center justify-center gap-1 text-sm">
+          {DIFFICULTIES.map((diff, i) => (
+            <span key={diff} className="flex items-center gap-1">
+              {i > 0 && <span className="text-border mx-1">·</span>}
+              <span
+                className={`cursor-pointer transition-colors ${
+                  activeDifficulty === diff
+                    ? DIFF_COLOR[diff]
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => toggle('difficulty', diff)}
+              >
+                {diff}
+              </span>
+            </span>
           ))}
         </div>
-        <div className="flex gap-2 justify-center">
-          {DIFFICULTIES.map(diff => (
-            <Badge
-              key={diff}
-              className={`cursor-pointer ${
-                activeDifficulty === diff ? DIFF_STYLE[diff] : ''
-              }`}
-              variant={activeDifficulty === diff ? 'secondary' : 'outline'}
-              onClick={() => toggle('difficulty', diff)}
-            >
-              {diff}
-            </Badge>
-          ))}
+
+        {/* 分类筛选：折叠触发器 */}
+        <div>
+          <span
+            className={`cursor-pointer text-xs tracking-wider transition-colors ${
+              activeCategory ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => setCatOpen(o => !o)}
+          >
+            {catOpen ? '▾' : '▸'}
+            {' '}
+            {activeCategory ? `筛选分类：${activeCategory}` : '筛选分类'}
+          </span>
+
+          {/* 展开的分类列表 */}
+          {catOpen && (
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-x-1 gap-y-1.5 text-xs leading-relaxed">
+              {/* 全部（重置） */}
+              <span
+                className={`cursor-pointer transition-colors ${
+                  activeCategory === '' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => { toggle('category', activeCategory); setCatOpen(false) }}
+              >
+                全部
+              </span>
+
+              {categories.map(cat => (
+                <span key={cat} className="flex items-center gap-1">
+                  <span className="text-border">·</span>
+                  <span
+                    className={`cursor-pointer transition-colors ${
+                      activeCategory === cat ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    onClick={() => { toggle('category', cat); setCatOpen(false) }}
+                  >
+                    {cat}
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
