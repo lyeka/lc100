@@ -35,7 +35,7 @@ export function CodeBlock({ code, language = 'go' }) {
       <ScrollArea className="w-full">
         <Highlight theme={themes.nightOwl} code={code.trim()} language={language}>
           {({ tokens, getLineProps, getTokenProps }) => (
-            <pre className="p-5 pr-14 text-sm leading-relaxed font-mono overflow-x-auto">
+            <pre className="p-5 pr-14 text-base leading-relaxed font-mono overflow-x-auto">
               {tokens.map((line, i) => (
                 <div key={i} {...getLineProps({ line })}>
                   {/* 行号 */}
