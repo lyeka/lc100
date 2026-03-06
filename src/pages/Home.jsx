@@ -74,9 +74,9 @@ export function Home() {
           <span className="text-primary">✦</span>
           <span>─────────</span>
         </div>
-        <p className="text-sm text-muted-foreground">
+        {/* <p className="text-sm text-muted-foreground">
           Go 语言题解 · {problems.length} 道题 · {categories.length} 个算法分类
-        </p>
+        </p> */}
       </div>
 
       {/* ════════════════════════════════════════
