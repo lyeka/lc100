@@ -1,0 +1,171 @@
+[
+  {
+    "id": "Q1-0a",
+    "title": "System/User/Assistant/Tool 四种 Message Role 的设计意图——为什么不用统一角色",
+    "category": "LLM 应用工程",
+    "categoryId": 1,
+    "level": "L2",
+    "answerPoints": [
+      "权限层级：System > Tool > User。System prompt 中的指令更难被 user content 覆盖——这是 Prompt Injection 防御的第一道墙",
+      "注意力差异：模型对不同 role 的 attention 权重不同，system prompt 的指令遵循度最高",
+      "Tool message 的特殊性：它是\"数据\"不是\"指令\"——这个语义区分是防止 Indirect Injection 的关键。如果工具返回值混入 user role，恶意内容会被当作用户指令执行",
+      "工程价值：role 分离让 context 的每一段信息都有明确身份，便于审计、过滤、权限控制",
+      "Assistant message 的作用：few-shot 中用 assistant role 演示期望输出；在 multi-turn 中保持模型行为一致性"
+    ],
+    "followUp": [
+      "为什么有些框架把 tool result 放在 assistant message 里而非独立的 tool message？这会带来什么安全风险？",
+      "如果你需要在 system prompt 中注入动态内容（如当前用户权限），如何避免这个动态内容被 injection 利用？"
+    ]
+  },
+  {
+    "id": "Q1-0b",
+    "title": "Few-shot Prompting 的工程边界——什么时候 few-shot 不如 fine-tuning",
+    "category": "LLM 应用工程",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "answerPoints": [
+      "Few-shot 是用 context window 教模型\"怎么做\"，Fine-tuning 是把知识烤进权重",
+      "Few-shot 胜出：任务频繁变化、样本少于 100、需要快速迭代、不同用户不同风格",
+      "Fine-tuning 胜出：格式高度固定且重复（如非结构化文本 → 特定 schema 提取）、需要降低推理延迟（不用塞示例 token）、成本敏感（few-shot 示例每次调用都消耗 token）",
+      "Agent 中的实践：Procedural Memory 本质上就是动态 few-shot——从历史成功案例中检索相关示例注入 context",
+      "关键工程细节：few-shot 示例的顺序影响输出质量（最后一个示例权重最高）；示例多样性比数量更重要"
+    ],
+    "followUp": [
+      "Few-shot 示例的选择策略？静态固定 vs 动态检索 vs 随机采样，各适合什么场景？",
+      "你有没有做过 few-shot → fine-tuning 的迁移？触发迁移的信号是什么？"
+    ]
+  },
+  {
+    "id": "Q1-0c",
+    "title": "Reasoning Models（o1/o3/DeepSeek-R1）和标准 Chat Models 在 Agent 中的本质区别",
+    "category": "LLM 应用工程",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "background": "2025 年最重要的模型范式变化。Reasoning model 产生内部推理链（thinking tokens），这不是 prompt 技巧，而是模型能力的结构性变化。",
+    "answerPoints": [
+      "核心区别：Reasoning model 产生 thinking tokens——模型先\"内部思考\"再输出答案，思考过程消耗 token 但（通常）对外不可见",
+      "延迟代价：thinking 过程可能需要数秒到数十秒，不适合实时交互的 Agent 步骤",
+      "成本结构：thinking tokens 也计费，单次调用成本可能 5-10x 于同级 chat model",
+      "Agent 中的定位：\n  - 适合：关键决策节点（复杂规划、数学推理、代码生成）\n  - 不适合：每步 ReAct 推理（太慢太贵）、简单分类/路由（杀鸡用牛刀）",
+      "与 CoT 的关系：外部 CoT（prompt 要求\"逐步推理\"）vs 内部 CoT（模型原生能力）——Reasoning model 不需要写 \"let's think step by step\"",
+      "架构影响：Model Routing 需要新增 \"reasoning tier\"；Streaming 不适用于 thinking 阶段；Temperature/采样参数在 reasoning model 中的行为不同",
+      "DeepSeek-R1 的特殊性：开源、可本地部署、thinking tokens 可见，适合对推理过程有审计需求的场景"
+    ],
+    "followUp": [
+      "你的 Agent 系统如何决定一个子任务是否值得用 reasoning model？routing 策略是什么？",
+      "Reasoning model 的 thinking tokens 能否用于可观测性（追踪模型的推理路径）？"
+    ]
+  },
+  {
+    "id": "Q1-1",
+    "title": "什么是 Context Engineering？它和 Prompt Engineering 的区别是什么",
+    "category": "LLM 应用工程",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "background": "Context Engineering 是 2025 年开始流行的更精确术语，指对注入 LLM context window 的**所有信息**进行系统性管理——不只是 prompt，还包括工具结果、历史记忆、retrieved 文档、系统状态等。",
+    "answerPoints": [
+      "Prompt Engineering：聚焦于写更好的 prompt 文本（措辞、结构、few-shot）",
+      "Context Engineering：更宏观，管理 context window 的整体信息架构：\n  - 哪些信息必须在场（工具 schema、任务定义、关键状态）\n  - 哪些信息可以省略（过期历史、冗余内容）\n  - 信息的排列顺序（LLM 对 context 首尾注意力更高，中间会\"Lost in the Middle\"）\n  - 信息的格式（XML 结构 vs markdown vs plain text）",
+      "工程价值：相同 LLM，Context 管理好坏导致 Agent 质量差异可能超过 30%"
+    ],
+    "followUp": [
+      "Lost-in-the-Middle 问题对你的系统有实际影响吗？你怎么解决的？",
+      "当一个 Agent 任务需要 10 个工具的 schema 全部注入，但总长度超过 1/3 context 时，你如何处理？"
+    ]
+  },
+  {
+    "id": "Q1-2",
+    "title": "Context Window 满了之后，你在生产中如何处理？有哪些策略，各自的代价是什么",
+    "category": "LLM 应用工程",
+    "categoryId": 1,
+    "level": "L3",
+    "answerPoints": [
+      "Sliding Window：保留最近 N 轮，直接丢弃早期内容——简单，但会丢失初始任务定义（务必保留系统 prompt）",
+      "Progressive Summarization：定期将历史对话压缩为摘要，注入下一轮——引入额外 LLM 调用延迟和成本，且摘要本身可能丢失细节",
+      "Selective Retrieval（Memory-Augmented）：历史存入 Vector DB，按相关性检索注入——最灵活但检索延迟 + 检索质量不稳定",
+      "Context Distillation：将长文档压缩为 key-facts，由专门的 LLM 调用完成——适合 RAG 场景",
+      "Map-Reduce 模式：将超长文档分段并行 summarize，再 combine——适合处理超长文档的 Agent 关键工程问题：无论哪种策略，系统 prompt（工具 schema + 角色定义）必须始终占据 context 首位，不得被压缩。"
+    ],
+    "followUp": [
+      "你的系统 context 大小如何监控？什么时候触发压缩？",
+      "Gemini 的 1M token context 在 Agent 开发中是否真正有用？有什么已知问题？"
+    ]
+  },
+  {
+    "id": "Q1-3",
+    "title": "Structured Output 在 Agent 开发中的价值是什么？你如何保证 LLM 输出符合 schema",
+    "category": "LLM 应用工程",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "answerPoints": [
+      "价值：工具调用参数、Agent 状态更新、向下游传递的决策——都必须是结构化的。自由文本输出需要额外解析，增加错误率",
+      "实现层次：\n  - JSON Mode：保证输出合法 JSON，但不保证符合特定 schema\n  - Structured Outputs（OpenAI）/ Tool Use JSON：基于 JSON Schema 约束，保证字段完整\n  - Pydantic AI：在 Python 类型系统层面定义输入输出 schema，validation 自动进行，最优雅\n  - Instructor 库：对任意 LLM 封装，失败自动重试直到 Pydantic 校验通过",
+      "失败处理：校验失败 → 将错误信息反馈给 LLM → 要求重新生成（Retry-with-feedback 模式）",
+      "Temperature 影响：Temperature > 0.2 时结构化输出的失败率明显上升，工具调用场景应设接近 0"
+    ],
+    "followUp": [
+      "当 LLM 输出了格式正确的 JSON，但字段值语义错误（如 quantity: -1），你在哪一层拦截？",
+      "Pydantic AI 和 Instructor 的核心区别？"
+    ]
+  },
+  {
+    "id": "Q1-4",
+    "title": "Agent 系统中如何实现 Streaming 响应？有哪些工程挑战",
+    "category": "LLM 应用工程",
+    "categoryId": 1,
+    "level": "L3",
+    "answerPoints": [
+      "基础流：LLM API 支持 SSE（Server-Sent Events）流式返回 tokens，减少用户感知延迟（TTFT）",
+      "Agent 中的特殊挑战：\n  - 工具调用中断：流式过程中 LLM 决定调用工具，必须中断流式输出，执行工具，再重新流式\n  - 多步骤 Streaming：ReAct 循环中每一步的推理文字是否也要流式给用户？（用户体验 vs 实现复杂度）\n  - 部分工具结果的流式：如果工具本身也是流式输出（如代码执行的 stdout），如何透传给用户",
+      "实现模式：\n  - Token-by-token：最低延迟，但工具调用时 UX 中断感明显\n  - Step-by-step：每完成一个 ReAct step 才 flush，延迟稍高但 UX 更流畅\n  - Hybrid：推理链流式展示，工具调用结果批量返回",
+      "后端架构：Streaming 需要保持长连接（WebSocket / SSE），对服务端并发架构有要求"
+    ],
+    "followUp": [
+      "如果用户中途断开连接，Agent 的后台执行是否应该继续？如何管理？"
+    ]
+  },
+  {
+    "id": "Q1-5",
+    "title": "Token 经济学如何影响 Agent 架构决策？从一个具体项目谈谈你是如何做成本优化的",
+    "category": "LLM 应用工程",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "answerPoints": [
+      "关键成本来源：长 system prompt（每次调用都计费）、工具 schema 注入、长历史对话、多步 ReAct 推理链",
+      "架构层优化：\n  - Model Routing：简单分类/格式化任务用 GPT-4o-mini，复杂推理才用 GPT-4o（成本可差 10-20x）\n  - Prompt Caching：Claude / GPT 均支持对重复前缀缓存（system prompt 缓存后后续调用便宜 80-90%）\n  - Semantic Caching：基于语义相似度缓存 LLM 响应（而非精确匹配），用户问\"北京天气\"和\"帝都天气如何\"命中同一缓存。工具：GPTCache、Redis 向量缓存。注意缓存失效策略（TTL + 语义距离阈值）\n  - 工具 Retrieval：数十个工具时，按相关性动态选 top-K 工具注入，而非全量",
+      "Prompt 层优化：精简 schema 描述、用更紧凑的 XML 格式代替 JSON、历史摘要压缩",
+      "衡量方法：建立 token/cost per task 指标，按任务类型分别追踪"
+    ],
+    "followUp": [
+      "你如何向业务方解释 LLM 成本，以及证明优化的 ROI？"
+    ]
+  },
+  {
+    "id": "Q1-6",
+    "title": "不同模型对工具调用/Agent 的支持差异，在你的项目中造成过什么坑？你是如何设计跨模型兼容的",
+    "category": "LLM 应用工程",
+    "categoryId": 1,
+    "level": "L3",
+    "answerPoints": [
+      "常见差异：\n  - 工具 schema 格式（OpenAI 的 functions vs Claude 的 tools vs Gemini 的 function_declarations）\n  - 并行工具调用支持程度不一\n  - 国内模型（DeepSeek、Qwen）的工具调用成熟度参差不齐\n  - finish_reason: tool_calls 的触发条件不同",
+      "设计方案：\n  - 抽象 LLM 接口层（Adapter Pattern），统一工具调用格式\n  - LiteLLM / OpenAI 兼容接口（许多国内/开源模型提供 OpenAI-compatible API）\n  - 为每个 provider 维护独立测试套件，新版本上线前跑 eval 回归",
+      "国内特殊考量：合规要求、数据不出境、模型服务稳定性"
+    ],
+    "followUp": []
+  },
+  {
+    "id": "Q1-7",
+    "title": "Temperature 和采样参数的工程实践——不是背概念，说说你在不同 Agent 场景下的实际设置",
+    "category": "LLM 应用工程",
+    "categoryId": 1,
+    "level": "L2",
+    "answerPoints": [
+      "工具调用场景：Temperature = 0（或接近 0）—— 确保 JSON schema 输出稳定，高 temperature 导致 JSON 破损率显著上升",
+      "ReAct 推理链：Temperature ≈ 0.3，兼顾逻辑连贯和轻微探索性",
+      "创意/分析输出：Temperature 0.7-0.9，用 Top-P 辅助控制",
+      "Structured Outputs 模式：在模型层约束输出格式时，temperature 的影响降低，可适当提高",
+      "生产原则：采样参数从代码中外置为配置，支持按任务类型覆盖；在 eval 套件中固定 seed 保证可重现"
+    ],
+    "followUp": []
+  }
+]
