@@ -1,15 +1,12 @@
 /**
- * [INPUT]: prism-react-renderer (Highlight, themes), @/components/ui/card, @/components/ui/button, lucide-react
+ * [INPUT]: react (useState), prism-react-renderer (Highlight, themes), @/components/ui/scroll-area
  * [OUTPUT]: CodeBlock 代码高亮组件
- * [POS]: Go 代码展示器，inset Card 容器 + prism 语法高亮 + 复制按钮
+ * [POS]: Go 代码展示器，铅字图版风格：border + bg-secondary，无阴影无圆角
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useState } from 'react'
 import { Highlight, themes } from 'prism-react-renderer'
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
-import { Check, Copy } from 'lucide-react'
 
 export function CodeBlock({ code, language = 'go' }) {
   const [copied, setCopied] = useState(false)
@@ -21,16 +18,14 @@ export function CodeBlock({ code, language = 'go' }) {
   }
 
   return (
-    <Card variant="inset" className="relative overflow-hidden">
-      {/* 复制按钮 */}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        className="absolute top-3 right-3 z-10 text-muted-foreground hover:text-foreground"
+    <div className="relative border border-border bg-secondary overflow-hidden">
+      {/* 复制按钮 — 纯文字 */}
+      <button
         onClick={handleCopy}
+        className="absolute top-3 right-3 z-10 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
       >
-        {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-      </Button>
+        {copied ? '已复制' : '复制'}
+      </button>
 
       <ScrollArea className="w-full">
         <Highlight theme={themes.nightOwl} code={code.trim()} language={language}>
@@ -52,6 +47,6 @@ export function CodeBlock({ code, language = 'go' }) {
         </Highlight>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
-    </Card>
+    </div>
   )
 }
