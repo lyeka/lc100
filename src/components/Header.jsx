@@ -12,11 +12,18 @@ import { ThemeSelector } from '@/components/ThemeSelector'
 
 const navLinks = [
   { to: '/', label: '题库' },
+  { to: '/agent', label: 'Agent' },
   { to: '/design-system', label: '设计系统' },
 ]
 
 export function Header() {
   const location = useLocation()
+
+  /* ── 导航激活判断：/ 精确匹配，其他 startsWith ── */
+  function isActive(to) {
+    if (to === '/') return location.pathname === '/'
+    return location.pathname.startsWith(to)
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-sm">
@@ -38,7 +45,7 @@ export function Header() {
                 key={to}
                 to={to}
                 className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
-                  location.pathname === to
+                  isActive(to)
                     ? 'bg-primary/10 text-primary font-medium'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 }`}

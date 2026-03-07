@@ -10,6 +10,7 @@ import { Github } from 'lucide-react'
 
 const links = [
   { to: '/', label: '题库' },
+  { to: '/agent', label: 'Agent' },
   { to: '/design-system', label: '设计系统' },
 ]
 

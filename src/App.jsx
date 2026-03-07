@@ -9,6 +9,8 @@ import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { Home } from '@/pages/Home'
 import { ProblemDetail } from '@/pages/ProblemDetail'
+import { AgentHome } from '@/pages/AgentHome'
+import { AgentDetail } from '@/pages/AgentDetail'
 import { DesignSystem } from '@/pages/DesignSystem'
 
 function Layout({ children }) {
@@ -28,6 +30,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/problem/:id" element={<ProblemDetail />} />
+          <Route path="/agent" element={<AgentHome />} />
+          <Route path="/agent/:id" element={<AgentDetail />} />
           <Route path="/design-system" element={<DesignSystem />} />
         </Routes>
       </Layout>
