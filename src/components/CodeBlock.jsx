@@ -1,15 +1,17 @@
 /**
- * [INPUT]: react (useState), prism-react-renderer (Highlight, themes), @/components/ui/scroll-area
+ * [INPUT]: react (useState), prism-react-renderer (Highlight), @/components/ui/scroll-area, @/components/codeThemes
  * [OUTPUT]: CodeBlock 代码高亮组件
- * [POS]: Go 代码展示器，铅字图版风格：border + bg-secondary，无阴影无圆角
+ * [POS]: Go 代码展示器，铅字图版风格：border + bg-secondary，语法色跟随书页主题联动
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useState } from 'react'
-import { Highlight, themes } from 'prism-react-renderer'
+import { Highlight } from 'prism-react-renderer'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
+import { useCodeTheme } from '@/components/codeThemes'
 
 export function CodeBlock({ code, language = 'go' }) {
   const [copied, setCopied] = useState(false)
+  const codeTheme = useCodeTheme()
 
   function handleCopy() {
     navigator.clipboard.writeText(code)
@@ -28,7 +30,7 @@ export function CodeBlock({ code, language = 'go' }) {
       </button>
 
       <ScrollArea className="w-full">
-        <Highlight theme={themes.nightOwl} code={code.trim()} language={language}>
+        <Highlight theme={codeTheme} code={code.trim()} language={language}>
           {({ tokens, getLineProps, getTokenProps }) => (
             <pre className="p-5 pr-14 text-base leading-relaxed font-mono overflow-x-auto">
               {tokens.map((line, i) => (
