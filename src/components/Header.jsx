@@ -1,13 +1,14 @@
 /**
- * [INPUT]: react-router (Link, useLocation), @/components/ui/button, lucide-react
+ * [INPUT]: react-router (Link, useLocation), @/components/ui/button, @/components/ThemeSelector
  * [OUTPUT]: Header 顶部导航组件
- * [POS]: 全局布局组件，sticky 定位，包含品牌 logo 和主导航
+ * [POS]: 全局布局组件，sticky 定位，包含品牌 logo、主导航、主题选择器
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { Link, useLocation } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Layers } from 'lucide-react'
+import { ThemeSelector } from '@/components/ThemeSelector'
 
 const navLinks = [
   { to: '/', label: '题库' },
@@ -29,22 +30,25 @@ export function Header() {
           <span className="text-base">LC100</span>
         </Link>
 
-        {/* 主导航 */}
-        <nav className="flex items-center gap-1">
-          {navLinks.map(({ to, label }) => (
-            <Link
-              key={to}
-              to={to}
-              className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
-                location.pathname === to
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              }`}
-            >
-              {label}
-            </Link>
-          ))}
-        </nav>
+        {/* 主导航 + 主题选择器 */}
+        <div className="flex items-center gap-4">
+          <nav className="flex items-center gap-1">
+            {navLinks.map(({ to, label }) => (
+              <Link
+                key={to}
+                to={to}
+                className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+                  location.pathname === to
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                }`}
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
+          <ThemeSelector />
+        </div>
 
       </div>
     </header>

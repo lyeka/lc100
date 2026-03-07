@@ -132,59 +132,151 @@
     --tracking-normal: 0em;
 }
 
-.dark {
-    --background: #141e29;
-    --foreground: #e0e6ed;
-    --card: #1e2d3d;
-    --card-foreground: #e0e6ed;
-    --popover: #1e2d3d;
-    --popover-foreground: #e0e6ed;
-    --primary: #cfa875;
-    --primary-foreground: #141e29;
-    --secondary: #243447;
-    --secondary-foreground: #e0e6ed;
-    --muted: #243447;
-    --muted-foreground: #8da2b5;
-    --accent: #2c3e50;
-    --accent-foreground: #e0e6ed;
-    --destructive: #a85c5c;
-    --border: #2c3e50;
-    --input: #2c3e50;
-    --ring: #cfa875;
-    --chart-1: #cfa875;
-    --chart-2: #b08d5e;
-    --chart-3: #7a9e8e;
-    --chart-4: #c49a6c;
-    --chart-5: #8da2b5;
-    --sidebar: #141e29;
-    --sidebar-foreground: #e0e6ed;
-    --sidebar-primary: #cfa875;
-    --sidebar-primary-foreground: #141e29;
-    --sidebar-accent: #243447;
-    --sidebar-accent-foreground: #e0e6ed;
-    --sidebar-border: #2c3e50;
-    --sidebar-ring: #cfa875;
-    --destructive-foreground: #e0e6ed;
-    --radius: 0rem;
-    --font-sans: "Alan Sans", "Songti SC", "SimSun", serif;
-    --font-serif: "Alan Sans", "Songti SC", "SimSun", serif;
-    --font-mono: "Alan Sans", "Songti SC", "SimSun", monospace;
-    --shadow-color: hsl(210 30% 3%);
-    --shadow-opacity: 0.5;
-    --shadow-blur: 24px;
-    --shadow-spread: 0px;
-    --shadow-offset-x: 0px;
-    --shadow-offset-y: 4px;
-    --letter-spacing: 0em;
-    --spacing: 0.25rem;
-    --shadow-2xs: 0px 1px 2px 0px hsl(210 30% 3% / 0.20);
-    --shadow-xs: 0px 1px 3px 0px hsl(210 30% 3% / 0.25);
-    --shadow-sm: 0px 2px 4px -1px hsl(210 30% 3% / 0.25), 0px 1px 2px -1px hsl(210 30% 3% / 0.20);
-    --shadow: 0px 4px 8px -2px hsl(210 30% 3% / 0.30), 0px 2px 4px -2px hsl(210 30% 3% / 0.20);
-    --shadow-md: 0px 6px 12px -3px hsl(210 30% 3% / 0.30), 0px 3px 6px -2px hsl(210 30% 3% / 0.20);
-    --shadow-lg: 0px 10px 20px -5px hsl(210 30% 3% / 0.35), 0px 4px 8px -3px hsl(210 30% 3% / 0.20);
-    --shadow-xl: 0px 20px 40px -8px hsl(210 30% 3% / 0.40), 0px 8px 16px -4px hsl(210 30% 3% / 0.20);
-    --shadow-2xl: 0px 30px 60px -12px hsl(210 30% 3% / 0.50);
+/* ══════════════════════════════════════════════════════════
+   陈年羊皮纸 — 泛黄暖纸 + 深褐墨水 + 旧金装饰
+   日光下的古籍阅览室
+   ══════════════════════════════════════════════════════════ */
+.theme-parchment {
+    --background: #f5f0e8;
+    --foreground: #2c1810;
+    --card: #faf7f2;
+    --card-foreground: #2c1810;
+    --popover: #faf7f2;
+    --popover-foreground: #2c1810;
+    --primary: #8b6914;
+    --primary-foreground: #faf7f2;
+    --secondary: #ebe5d9;
+    --secondary-foreground: #2c1810;
+    --muted: #ebe5d9;
+    --muted-foreground: #7a6b5a;
+    --accent: #e5ddd0;
+    --accent-foreground: #2c1810;
+    --destructive: #9b3b3b;
+    --destructive-foreground: #faf7f2;
+    --border: #d4c9b8;
+    --input: #ebe5d9;
+    --ring: #8b6914;
+    --chart-1: #8b6914;
+    --chart-2: #7a5c12;
+    --chart-3: #4a7a65;
+    --chart-4: #9b7b3a;
+    --chart-5: #7a6b5a;
+    --sidebar: #f0eadf;
+    --sidebar-foreground: #2c1810;
+    --sidebar-primary: #8b6914;
+    --sidebar-primary-foreground: #faf7f2;
+    --sidebar-accent: #e5ddd0;
+    --sidebar-accent-foreground: #2c1810;
+    --sidebar-border: #d4c9b8;
+    --sidebar-ring: #8b6914;
+    --shadow-color: hsl(30 30% 20%);
+    --shadow-opacity: 0.12;
+    --shadow-2xs: 0px 1px 2px 0px hsl(30 20% 30% / 0.06);
+    --shadow-xs: 0px 1px 3px 0px hsl(30 20% 30% / 0.08);
+    --shadow-sm: 0px 2px 4px -1px hsl(30 20% 30% / 0.08), 0px 1px 2px -1px hsl(30 20% 30% / 0.06);
+    --shadow: 0px 4px 8px -2px hsl(30 20% 30% / 0.10), 0px 2px 4px -2px hsl(30 20% 30% / 0.06);
+    --shadow-md: 0px 6px 12px -3px hsl(30 20% 30% / 0.10), 0px 3px 6px -2px hsl(30 20% 30% / 0.06);
+    --shadow-lg: 0px 10px 20px -5px hsl(30 20% 30% / 0.12), 0px 4px 8px -3px hsl(30 20% 30% / 0.06);
+    --shadow-xl: 0px 20px 40px -8px hsl(30 20% 30% / 0.15), 0px 8px 16px -4px hsl(30 20% 30% / 0.06);
+    --shadow-2xl: 0px 30px 60px -12px hsl(30 20% 30% / 0.18);
+}
+
+/* ══════════════════════════════════════════════════════════
+   象牙冷白 — 现代阅读器的克制清冷 + 微暖
+   Kindle 白色模式
+   ══════════════════════════════════════════════════════════ */
+.theme-ivory {
+    --background: #fafaf8;
+    --foreground: #1a1a1a;
+    --card: #ffffff;
+    --card-foreground: #1a1a1a;
+    --popover: #ffffff;
+    --popover-foreground: #1a1a1a;
+    --primary: #b08d5e;
+    --primary-foreground: #ffffff;
+    --secondary: #f0eeeb;
+    --secondary-foreground: #1a1a1a;
+    --muted: #f0eeeb;
+    --muted-foreground: #6b6b6b;
+    --accent: #e8e6e2;
+    --accent-foreground: #1a1a1a;
+    --destructive: #b54545;
+    --destructive-foreground: #ffffff;
+    --border: #e5e5e0;
+    --input: #f0eeeb;
+    --ring: #b08d5e;
+    --chart-1: #b08d5e;
+    --chart-2: #967545;
+    --chart-3: #3d8b6e;
+    --chart-4: #b8860b;
+    --chart-5: #6b6b6b;
+    --sidebar: #f5f5f3;
+    --sidebar-foreground: #1a1a1a;
+    --sidebar-primary: #b08d5e;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #e8e6e2;
+    --sidebar-accent-foreground: #1a1a1a;
+    --sidebar-border: #e5e5e0;
+    --sidebar-ring: #b08d5e;
+    --shadow-color: hsl(0 0% 50%);
+    --shadow-opacity: 0.08;
+    --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 50% / 0.05);
+    --shadow-xs: 0px 1px 3px 0px hsl(0 0% 50% / 0.06);
+    --shadow-sm: 0px 2px 4px -1px hsl(0 0% 50% / 0.06), 0px 1px 2px -1px hsl(0 0% 50% / 0.04);
+    --shadow: 0px 4px 8px -2px hsl(0 0% 50% / 0.08), 0px 2px 4px -2px hsl(0 0% 50% / 0.04);
+    --shadow-md: 0px 6px 12px -3px hsl(0 0% 50% / 0.08), 0px 3px 6px -2px hsl(0 0% 50% / 0.04);
+    --shadow-lg: 0px 10px 20px -5px hsl(0 0% 50% / 0.10), 0px 4px 8px -3px hsl(0 0% 50% / 0.04);
+    --shadow-xl: 0px 20px 40px -8px hsl(0 0% 50% / 0.12), 0px 8px 16px -4px hsl(0 0% 50% / 0.04);
+    --shadow-2xl: 0px 30px 60px -12px hsl(0 0% 50% / 0.15);
+}
+
+/* ══════════════════════════════════════════════════════════
+   莎草纸 — 中世纪手抄本的浓郁黄褐
+   最浓烈的复古
+   ══════════════════════════════════════════════════════════ */
+.theme-papyrus {
+    --background: #ede0c8;
+    --foreground: #3a2518;
+    --card: #f5eede;
+    --card-foreground: #3a2518;
+    --popover: #f5eede;
+    --popover-foreground: #3a2518;
+    --primary: #7a5c12;
+    --primary-foreground: #f5eede;
+    --secondary: #e0d3bb;
+    --secondary-foreground: #3a2518;
+    --muted: #e0d3bb;
+    --muted-foreground: #6b5a45;
+    --accent: #d8c9ab;
+    --accent-foreground: #3a2518;
+    --destructive: #8b3030;
+    --destructive-foreground: #f5eede;
+    --border: #c9b898;
+    --input: #e0d3bb;
+    --ring: #7a5c12;
+    --chart-1: #7a5c12;
+    --chart-2: #6b5010;
+    --chart-3: #557a5a;
+    --chart-4: #8b7028;
+    --chart-5: #6b5a45;
+    --sidebar: #e8dac0;
+    --sidebar-foreground: #3a2518;
+    --sidebar-primary: #7a5c12;
+    --sidebar-primary-foreground: #f5eede;
+    --sidebar-accent: #d8c9ab;
+    --sidebar-accent-foreground: #3a2518;
+    --sidebar-border: #c9b898;
+    --sidebar-ring: #7a5c12;
+    --shadow-color: hsl(30 30% 25%);
+    --shadow-opacity: 0.15;
+    --shadow-2xs: 0px 1px 2px 0px hsl(30 25% 25% / 0.08);
+    --shadow-xs: 0px 1px 3px 0px hsl(30 25% 25% / 0.10);
+    --shadow-sm: 0px 2px 4px -1px hsl(30 25% 25% / 0.10), 0px 1px 2px -1px hsl(30 25% 25% / 0.08);
+    --shadow: 0px 4px 8px -2px hsl(30 25% 25% / 0.12), 0px 2px 4px -2px hsl(30 25% 25% / 0.08);
+    --shadow-md: 0px 6px 12px -3px hsl(30 25% 25% / 0.12), 0px 3px 6px -2px hsl(30 25% 25% / 0.08);
+    --shadow-lg: 0px 10px 20px -5px hsl(30 25% 25% / 0.15), 0px 4px 8px -3px hsl(30 25% 25% / 0.08);
+    --shadow-xl: 0px 20px 40px -8px hsl(30 25% 25% / 0.18), 0px 8px 16px -4px hsl(30 25% 25% / 0.08);
+    --shadow-2xl: 0px 30px 60px -12px hsl(30 25% 25% / 0.22);
 }
 
 @layer base {
@@ -196,4 +288,15 @@
     background-image: radial-gradient(circle at 20% 20%, #2a3b4f 0%, var(--background) 60%);
     letter-spacing: var(--tracking-normal);
     }
+}
+
+/* ── 浅色主题覆盖 body 背景渐变 ── */
+.theme-parchment body {
+  background-image: radial-gradient(circle at 20% 20%, #ede5d5 0%, var(--background) 60%);
+}
+.theme-ivory body {
+  background-image: none;
+}
+.theme-papyrus body {
+  background-image: radial-gradient(circle at 20% 20%, #e5d5b8 0%, var(--background) 60%);
 }
