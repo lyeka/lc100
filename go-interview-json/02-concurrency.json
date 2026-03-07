@@ -1,0 +1,187 @@
+[
+  {
+    "id": "G2-01",
+    "title": "GMP 调度模型——goroutine 是如何被调度执行的？",
+    "category": "并发编程",
+    "categoryId": 2,
+    "level": "L3",
+    "answerPoints": [
+      "G（Goroutine）：用户态协程，初始栈仅 2KB（可动态扩缩到 1GB），创建成本极低（几百纳秒），runtime 管理其生命周期。每个 G 包含栈指针、PC、状态、绑定的 M 等信息",
+      "M（Machine）：操作系统线程，由 OS 内核调度。M 的数量默认上限 10000（可通过 runtime/debug.SetMaxThreads 调整），但活跃的 M 数量受 P 约束",
+      "P（Processor）：逻辑处理器，数量等于 GOMAXPROCS（默认等于 CPU 核数）。P 是 M 执行 G 的必要条件——M 必须持有一个 P 才能执行 G。每个 P 有本地运行队列（最多 256 个 G）",
+      "调度循环：M 从绑定 P 的本地队列取 G 执行 → 本地队列空则从全局队列批量转移（全局队列需加锁）→ 全局也空则随机选一个其他 P 偷取其本地队列的一半（Work Stealing）",
+      "Hand off 机制：当 G 进行阻塞系统调用时，M 会与 P 解绑并带着 G 一起阻塞。P 被转给其他空闲 M（或新建 M）继续执行队列中的 G，保证 P 不空闲",
+      "抢占式调度：Go 1.14 前只有协作式抢占（函数调用时检查 stackguard）；Go 1.14+ 引入基于信号的异步抢占（发送 SIGURG），解决了死循环 goroutine 霸占 CPU 的问题",
+      "Spinning Thread：M 在有 P 但无 G 可执行时进入自旋状态，主动偷取工作而非立即休眠，减少线程唤醒的延迟开销"
+    ],
+    "followUp": [
+      "GOMAXPROCS 设为 1 时还能并发吗？（答：能并发不能并行。只有一个 P，但 goroutine 仍会在时间片上被调度切换，I/O 阻塞时也会让出 P）",
+      "goroutine 泄漏的常见原因有哪些？（答：①channel 无人读/写导致永久阻塞 ②忘记关闭 channel 导致 range 死等 ③context 未取消导致子 goroutine 不退出 ④向已满的无缓冲 channel 发送。用 pprof goroutine 或 runtime.NumGoroutine() 检测）"
+    ]
+  },
+  {
+    "id": "G2-02",
+    "title": "channel 底层实现——hchan 结构体和发送/接收流程",
+    "category": "并发编程",
+    "categoryId": 2,
+    "level": "L3",
+    "answerPoints": [
+      "channel 底层是 runtime.hchan 结构体：buf（环形缓冲区指针）、sendx/recvx（发送/接收索引）、sendq/recvq（阻塞的 goroutine 等待队列，双向链表）、lock（互斥锁）、closed（关闭标志）",
+      "有缓冲 channel 内部维护一个固定大小的环形队列（ring buffer），用 sendx 和 recvx 两个游标实现 FIFO",
+      "发送流程：①先看 recvq 有没有等待的接收者，有则直接将数据拷贝给接收者并唤醒它（bypass buffer）②无等待接收者且 buf 未满，数据拷贝到 buf[sendx] 位置 ③buf 满了，当前 G 打包成 sudog 挂到 sendq，M 让出 P 切换到其他 G",
+      "接收流程对称：①先看 sendq 有没有等待的发送者 ②有则直接取数据（如果有 buf 则从 buf 取头部，同时将发送者的数据放到 buf 尾部）③无等待发送者且 buf 有数据，从 buf[recvx] 取 ④buf 空，挂到 recvq 等待",
+      "无缓冲 channel（buf 大小为 0）：发送和接收必须配对，数据直接从发送者 goroutine 的栈拷贝到接收者的栈（zero-copy optimization），不经过 buf",
+      "关闭 channel：将 closed 标志置 1，唤醒所有 recvq 和 sendq 中的 goroutine。recvq 中的收到零值，sendq 中的 panic"
+    ],
+    "followUp": [
+      "为什么 channel 内部用 mutex 而不是 CAS 无锁？（答：channel 操作涉及 goroutine 状态切换（gopark/goready）和队列操作，不是简单的原子操作能搞定的。锁的持有时间极短，竞争不激烈时性能足够）",
+      "channel 性能不够时有什么替代方案？（答：简单计数用 atomic 包；保护共享结构用 sync.Mutex/RWMutex；批量数据传输考虑无锁队列。选择依据是通信模式而非盲目追求无锁）"
+    ]
+  },
+  {
+    "id": "G2-03",
+    "title": "select 多路复用——所有 case 都 ready 时会怎样？",
+    "category": "并发编程",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "answerPoints": [
+      "select 用于同时监听多个 channel 操作，当多个 case 都 ready 时，随机选择一个执行（伪随机，用 fastrand 实现），防止饥饿",
+      "如果没有 case ready 且有 default 分支，立即执行 default（非阻塞模式）。没有 default 则阻塞等待直到某个 case ready",
+      "空 select{}（无 case 无 default）会永久阻塞当前 goroutine，常用于 main 函数中阻止进程退出",
+      "select 的底层实现（runtime.selectgo）：①将所有 case 打乱顺序（随机化）②按 channel 地址排序加锁（避免死锁）③遍历所有 case 检查是否 ready ④都不 ready 则将当前 G 挂到所有 case 对应 channel 的等待队列 ⑤被唤醒后从其他 channel 的等待队列中移除自己",
+      "select + time.After 实现超时控制；select + context.Done() 实现取消传播——这两个是最常见的生产用法"
+    ],
+    "codeExample": {
+      "code": "// 超时控制\nselect {\ncase result := <-ch:\n\thandleResult(result)\ncase <-time.After(3 * time.Second):\n\thandleTimeout()\ncase <-ctx.Done():\n\thandleCancel(ctx.Err())\n}\n\n// 非阻塞尝试发送\nselect {\ncase ch <- msg:\n\t// 发送成功\ndefault:\n\t// channel 满了，丢弃或降级处理\n}",
+      "language": "go",
+      "explanation": "超时控制和非阻塞尝试是 select 最核心的两个生产模式。"
+    },
+    "followUp": [
+      "time.After 在循环中使用有什么问题？（答：每次迭代创建新 Timer，旧 Timer 在触发前不会被 GC，导致内存泄漏。应在循环外创建 time.NewTimer 并在每次迭代 Reset）"
+    ]
+  },
+  {
+    "id": "G2-04",
+    "title": "sync.Mutex 底层——正常模式和饥饿模式有什么区别？",
+    "category": "并发编程",
+    "categoryId": 2,
+    "level": "L3",
+    "answerPoints": [
+      "Mutex 底层用一个 int32 state 字段的不同 bit 位表示：是否被锁定（locked）、是否有 goroutine 被唤醒（woken）、是否处于饥饿模式（starving）、等待者数量（waiter count）",
+      "正常模式（Normal Mode）：新来的 goroutine 先自旋尝试获取锁（CAS），自旋几次失败后才排队。因为当前 CPU 上运行的 goroutine 有缓存优势，这种设计吞吐量更高",
+      "饥饿模式（Starvation Mode）：当某个等待者超过 1ms 未获得锁时触发。在饥饿模式下，锁直接交给等待队列中的第一个 goroutine，新来的不再尝试自旋也不尝试获取锁，直接排队尾",
+      "模式切换回正常：当获得锁的 goroutine 是队列中最后一个，或等待时间小于 1ms 时，切换回正常模式",
+      "设计哲学：正常模式追求吞吐量（自旋减少上下文切换），饥饿模式追求公平性（防止尾部延迟过高）。两种模式自动切换，无需用户干预"
+    ],
+    "followUp": [
+      "什么时候该用 RWMutex？它有什么陷阱？（答：读多写少时 RWMutex 性能优于 Mutex。陷阱：写锁会阻塞后续所有读锁获取（避免写饥饿），所以写操作不能太频繁否则退化为排他锁。RWMutex 也有正常/饥饿模式）",
+      "Mutex 可以拷贝吗？（答：不可以。拷贝会复制锁状态，导致两个锁各自独立但状态混乱。go vet 会检测 Mutex 拷贝。Mutex 应该通过指针传递或嵌入 struct 中）"
+    ]
+  },
+  {
+    "id": "G2-05",
+    "title": "context 包——如何正确使用 context 传播取消和超时？",
+    "category": "并发编程",
+    "categoryId": 2,
+    "level": "L2",
+    "answerPoints": [
+      "context 是 Go 并发编程的标准取消/超时传播机制，贯穿整个调用链。context.Context 接口有四个方法：Deadline()、Done()、Err()、Value()",
+      "四种构造方式：context.Background()（根节点）、WithCancel（手动取消）、WithTimeout/WithDeadline（超时取消）、WithValue（携带请求级 KV）",
+      "取消传播是树形的：父 context 取消，所有子 context 都会被取消；子 context 取消不影响父 context。这意味着 context 形成了一个取消传播树",
+      "context 应该作为函数的第一个参数传递（命名为 ctx），不要存在 struct 中（因为 context 是请求级的，每次请求不同）",
+      "WithValue 不应滥用：只用于传递请求级的跨 API 边界数据（如 traceID、requestID），不要用它替代函数参数传递业务数据",
+      "调用 cancel() 后应该及时调用，通常用 defer cancel() 模式。忘记 cancel 会导致 context 对应的资源（goroutine、timer）泄漏"
+    ],
+    "codeExample": {
+      "code": "func fetchWithTimeout(url string) ([]byte, error) {\n\tctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)\n\tdefer cancel() // 重要：即使函数正常返回也要 cancel\n\n\treq, _ := http.NewRequestWithContext(ctx, \"GET\", url, nil)\n\tresp, err := http.DefaultClient.Do(req)\n\tif err != nil {\n\t\treturn nil, err // ctx 超时时 err 是 context.DeadlineExceeded\n\t}\n\tdefer resp.Body.Close()\n\treturn io.ReadAll(resp.Body)\n}",
+      "language": "go",
+      "explanation": "WithTimeout 创建带超时的 ctx，传给 HTTP 请求。超时后请求自动取消，err 返回 context.DeadlineExceeded。defer cancel() 确保无论成功失败都释放资源。"
+    },
+    "followUp": [
+      "context.Value 的查找复杂度是多少？为什么？（答：O(n)，n 是 context 链的深度。Value 沿着 parent 链逐层向上查找，所以不适合存大量数据。这也是为什么只应存 traceID 这类少量请求级数据）"
+    ]
+  },
+  {
+    "id": "G2-06",
+    "title": "sync.WaitGroup 和 sync.Once——并发控制的基础原语",
+    "category": "并发编程",
+    "categoryId": 2,
+    "level": "L2",
+    "answerPoints": [
+      "WaitGroup 用于等待一组 goroutine 全部完成。三个方法：Add(delta) 增加计数、Done() 减少计数（等价于 Add(-1)）、Wait() 阻塞直到计数归零",
+      "WaitGroup 的常见坑：①Add 必须在 goroutine 启动前调用，不能在 goroutine 内部 Add ②计数不能变成负数，否则 panic ③WaitGroup 不能被拷贝（传参用指针）",
+      "Once 保证函数只执行一次，无论多少 goroutine 并发调用。内部用 atomic + Mutex 实现双重检查锁定（DCLP）",
+      "Once 的关键特性：如果 f() panic 了，Once 也视为已执行完成，后续调用不会重试。Go 1.21 新增 OnceFunc/OnceValue/OnceValues 返回包装后的函数，更易用",
+      "errgroup（golang.org/x/sync/errgroup）是 WaitGroup 的增强版：支持错误收集、context 取消传播、并发数限制"
+    ],
+    "codeExample": {
+      "code": "var once sync.Once\nvar instance *Database\n\nfunc GetDB() *Database {\n\tonce.Do(func() {\n\t\tinstance = connectDatabase()\n\t})\n\treturn instance\n}\n// 100 个 goroutine 同时调用 GetDB()，\n// connectDatabase() 只会执行一次",
+      "language": "go",
+      "explanation": "sync.Once 实现单例模式最简洁的方式，比双重检查锁定（DCL）更安全更易读。"
+    },
+    "followUp": [
+      "sync.Once 内部怎么实现的？为什么不能只用 atomic？（答：内部先用 atomic.LoadUint32 快速路径检查是否已完成；未完成时加 Mutex 保证只有一个 goroutine 执行 f()；执行完后 atomic.StoreUint32 标记完成。纯 atomic CAS 无法保证 f() 执行期间其他 goroutine 不重入）"
+    ]
+  },
+  {
+    "id": "G2-07",
+    "title": "goroutine 并发陷阱——闭包捕获、data race、死锁",
+    "category": "并发编程",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "answerPoints": [
+      "闭包捕获循环变量（Go 1.22 前）：goroutine 闭包捕获的是循环变量的引用而非值，所有 goroutine 最终看到同一个最终值。修复：传参或重新声明 i := i",
+      "Data Race：两个以上 goroutine 并发访问同一内存，且至少一个是写操作，且没有同步机制。用 go run/test -race 检测。Data race 是未定义行为，可能导致任何结果",
+      "死锁四条件：互斥、持有并等待、不可剥夺、循环等待。Go 的 runtime 只能检测全局死锁（所有 goroutine 都阻塞），无法检测部分死锁",
+      "常见死锁场景：①向无缓冲 channel 发送但无人接收 ②锁的嵌套获取顺序不一致 ③WaitGroup Add 和 Done 不匹配",
+      "并发写 map 不是 data race 那么简单——Go runtime 做了特殊检测，并发写 map 直接 fatal 崩溃（不是 panic，不能 recover），这是故意的 fail-fast 设计"
+    ],
+    "codeExample": {
+      "code": "// Data Race 示例\nvar counter int\nvar wg sync.WaitGroup\nfor i := 0; i < 1000; i++ {\n\twg.Add(1)\n\tgo func() {\n\t\tdefer wg.Done()\n\t\tcounter++ // DATA RACE!\n\t}()\n}\nwg.Wait()\n// counter 的值不确定，可能远小于 1000\n\n// 修复方案一：atomic\nvar counter int64\natomic.AddInt64(&counter, 1)\n\n// 修复方案二：Mutex\nvar mu sync.Mutex\nmu.Lock()\ncounter++\nmu.Unlock()",
+      "language": "go",
+      "explanation": "counter++ 不是原子操作（读-改-写三步），多 goroutine 并发执行会丢失更新。atomic 或 Mutex 保证操作的原子性。"
+    },
+    "followUp": [
+      "go test -race 的原理是什么？有什么限制？（答：基于 ThreadSanitizer 算法，在编译时插桩记录每次内存访问，运行时检测冲突。限制：只能检测运行路径上发生的 race，未执行的路径不会检测到；且有 5-10x 的性能开销，不适合生产环境）"
+    ]
+  },
+  {
+    "id": "G2-08",
+    "title": "atomic 包与 CAS——无锁编程在 Go 中的实践",
+    "category": "并发编程",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "answerPoints": [
+      "atomic 包提供硬件级原子操作：Load/Store（读写）、Add（加减）、Swap（交换）、CompareAndSwap（CAS）。操作粒度是单个变量（int32/int64/uint32/uint64/uintptr/Pointer）",
+      "CAS（Compare-And-Swap）是无锁编程的基石：原子地比较并替换，如果当前值等于期望值则替换为新值，否则不操作。返回是否成功",
+      "Go 1.19 引入了泛型原子类型 atomic.Int64/atomic.Bool/atomic.Pointer[T]，比直接用 atomic.LoadInt64 更安全（防止误用非原子操作访问同一变量）",
+      "atomic 适合简单场景：计数器、标志位、无锁的发布/订阅。复杂场景（如保护多个相关变量的一致性）仍需 Mutex",
+      "atomic.Value 用于存储和加载任意类型的值（原子地替换整个值），常用于配置热更新：写入端用 Store 原子替换配置，读取端用 Load 原子读取，无需加锁"
+    ],
+    "codeExample": {
+      "code": "// 无锁计数器（Go 1.19+ 推荐写法）\nvar ops atomic.Int64\n\nfor i := 0; i < 1000; i++ {\n\tgo func() {\n\t\tops.Add(1)\n\t}()\n}\n\n// 配置热更新\nvar config atomic.Value\nconfig.Store(loadConfig()) // 初始加载\n\n// 后台定期刷新\ngo func() {\n\tfor range time.Tick(time.Minute) {\n\t\tconfig.Store(loadConfig())\n\t}\n}()\n\n// 业务代码读取，无锁\ncfg := config.Load().(*Config)",
+      "language": "go",
+      "explanation": "atomic.Int64 防止忘记用 atomic 函数访问变量。atomic.Value 实现配置热更新：写入方 Store 整个新配置，读取方 Load 获取最新配置快照，天然并发安全。"
+    },
+    "followUp": [
+      "atomic 和 Mutex 怎么选？（答：保护单个变量的简单操作用 atomic（性能好 1-2 个数量级）；保护多个变量或复杂操作用 Mutex。永远先写 Mutex 版本，profiling 证明是瓶颈后再考虑 atomic）"
+    ]
+  },
+  {
+    "id": "G2-09",
+    "title": "goroutine 栈管理——2KB 初始栈如何支撑深度递归？",
+    "category": "并发编程",
+    "categoryId": 2,
+    "level": "L3",
+    "answerPoints": [
+      "每个 goroutine 初始栈只有 2KB（对比 OS 线程默认 1-8MB），这是 Go 能创建百万级 goroutine 的关键",
+      "栈扩容：编译器在函数入口插入栈检查（stack check），当剩余栈空间不足时触发栈扩容。Go 1.4+ 使用连续栈（contiguous stack）方案：分配一块 2 倍大的新栈，将旧栈数据拷贝过去，更新所有栈指针",
+      "连续栈 vs 分段栈（segmented stack）：Go 1.3 前使用分段栈（链表结构），缺点是函数在栈边界反复调用会频繁分配/释放段（hot split problem）。连续栈通过加倍策略避免了这个问题",
+      "栈缩容：GC 时检查栈使用率，如果使用量不足栈容量的 1/4，缩容为当前的 1/2（但不小于 2KB）。这保证了栈不会一直占用高水位的内存",
+      "栈指针更新：连续栈拷贝后所有指向旧栈的指针都要修正，Go 编译器通过精确的指针映射（stack map）实现，这也是 Go 不允许指针运算的原因之一——运算后的指针无法被自动更新"
+    ],
+    "followUp": [
+      "为什么 Go 不允许指针运算？只是为了安全吗？（答：不仅是安全，更是为了支持精确 GC 和栈拷贝。运算后的指针无法被 runtime 追踪和自动更新，会导致 GC 和栈扩容时出现悬空指针）"
+    ]
+  }
+]

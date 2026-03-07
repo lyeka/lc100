@@ -1,0 +1,118 @@
+[
+  {
+    "id": "G3-01",
+    "title": "逃逸分析——什么情况下变量会从栈逃逸到堆？",
+    "category": "内存管理与 GC",
+    "categoryId": 3,
+    "level": "L2/L3",
+    "answerPoints": [
+      "逃逸分析（Escape Analysis）是编译期静态分析，编译器判断变量的生命周期是否超出当前栈帧，决定分配在栈还是堆上",
+      "栈分配极快（只需移动 SP 指针），函数返回自动回收，无需 GC 参与。堆分配需要调用 runtime.mallocgc，后续由 GC 回收，代价高得多",
+      "常见逃逸场景：①返回局部变量的指针（指针指向的对象生命周期超出函数）②变量被闭包引用（闭包可能在函数返回后被调用）③赋值给 interface{}（编译器无法确定具体类型大小）④发送到 channel 的指针（channel 的生命周期不确定）⑤变量大小编译期不确定（如 make([]int, n)，n 是运行时值）⑥slice/map 中存储指针",
+      "使用 go build -gcflags='-m' 查看逃逸分析结果；加 -m -m 可以看到更详细的逃逸原因链",
+      "性能优化启示：小结构体传值而非传指针（避免逃逸）、避免不必要的 interface{} 装箱、预分配已知大小的 slice/map（make 的参数在编译期已知则不逃逸）"
+    ],
+    "codeExample": {
+      "code": "// 逃逸：返回局部变量指针\nfunc newUser() *User {\n\tu := User{Name: \"alice\"} // u 逃逸到堆\n\treturn &u\n}\n\n// 不逃逸：值传递\nfunc copyUser(u User) User {\n\tu.Name = \"bob\" // u 在栈上\n\treturn u\n}\n\n// 逃逸：赋值给 interface{}\nfunc logValue(v any) { fmt.Println(v) }\nfunc main() {\n\tx := 42\n\tlogValue(x) // x 被装箱到 interface{}，逃逸到堆\n}\n\n// $ go build -gcflags='-m' ./...\n// ./main.go:3:2: moved to heap: u",
+      "language": "go",
+      "explanation": "返回 &u 导致 u 的生命周期超出函数栈帧；传给 interface{} 导致编译器无法确定大小而逃逸。"
+    },
+    "followUp": [
+      "传指针一定比传值快吗？（答：不一定。小结构体（几十字节以内）传值更快——栈上分配 + 无 GC 开销 + CPU 缓存友好。传指针可能导致逃逸到堆，反而更慢）",
+      "如何量化逃逸优化的效果？（答：写 benchmark 对比优化前后，用 go test -bench -benchmem 看 allocs/op，结合 pprof 的 alloc_space 确认堆分配减少量）"
+    ]
+  },
+  {
+    "id": "G3-02",
+    "title": "三色标记法——Go GC 的核心算法是怎么工作的？",
+    "category": "内存管理与 GC",
+    "categoryId": 3,
+    "level": "L3",
+    "answerPoints": [
+      "Go 使用并发三色标记-清除（Concurrent Tri-color Mark-and-Sweep）GC。三色：白色（未扫描，可能是垃圾）、灰色（已发现但子对象未扫描完）、黑色（已扫描完，确定存活）",
+      "标记流程：初始所有对象白色 → 将根对象（全局变量、goroutine 栈、寄存器）标灰 → 从灰色队列取出对象，扫描其引用的子对象，子对象标灰，自身标黑 → 重复直到无灰色对象 → 剩余白色对象即为垃圾",
+      "GC 四阶段：①Mark Setup（STW，极短）：开启写屏障 ②Concurrent Mark（并发）：标记存活对象，占用约 25% CPU ③Mark Termination（STW，极短）：关闭写屏障，完成最终标记 ④Concurrent Sweep（并发）：回收白色对象内存",
+      "并发标记的挑战：标记期间用户 goroutine 还在修改指针，可能导致漏标。具体是「黑色对象新引用了白色对象，同时灰色对象到该白色对象的引用被删除」——白色对象被遗漏回收导致悬空引用",
+      "Go 的解决方案是混合写屏障（Hybrid Write Barrier，Go 1.8+）：Dijkstra 插入写屏障（新指向的对象标灰）+ Yuasa 删除写屏障（被删除引用的对象标灰），保证不漏标",
+      "STW 时间通常在 1ms 以内。Go 1.5 引入并发 GC 后，STW 从几十毫秒降到亚毫秒级别"
+    ],
+    "followUp": [
+      "为什么需要 STW？能不能完全不 STW？（答：Mark Setup 阶段需要 STW 来开启写屏障保证一致性；Mark Termination 需要 STW 来完成 rescan 并关闭写屏障。虽然时间极短但无法完全消除，这是正确性的代价）",
+      "Go 的 GC 是分代的吗？（答：不是经典的分代 GC，但行为类似。Go 的 GC 每次标记所有存活对象，不分新生代老年代。但由于大部分对象都是短命的，并发标记天然对短命对象友好）"
+    ]
+  },
+  {
+    "id": "G3-03",
+    "title": "GC 触发时机与调优——GOGC 和 GOMEMLIMIT 怎么用？",
+    "category": "内存管理与 GC",
+    "categoryId": 3,
+    "level": "L2/L3",
+    "answerPoints": [
+      "GC 触发三种方式：①堆内存增长达到阈值（GOGC 控制）②定时触发（2 分钟没有 GC 则强制触发）③手动调用 runtime.GC()（同步阻塞，通常只在测试中使用）",
+      "GOGC（默认 100）：表示堆增长百分比。GOGC=100 意味着堆从上次 GC 后翻倍时触发下一次 GC。GOGC=50 增长 50% 就触发（更频繁、更低延迟、更多 CPU 开销），GOGC=200 增长 200% 才触发（更少频率、更少 CPU、更高内存占用）",
+      "GOMEMLIMIT（Go 1.19+）：设置软内存上限。配合 GOGC=off 使用，可以实现「内存不到限额不 GC，快到限额了再积极 GC」的策略，最大化利用可用内存同时防止 OOM",
+      "GC 调优实践：大多数服务不需要调优，默认 GOGC=100 够用。内存敏感服务可以降低 GOGC；CPU 敏感且内存充足的服务可以提高 GOGC；容器环境推荐设置 GOMEMLIMIT 为容器内存的 80-90%",
+      "debug.SetGCPercent() 和 debug.SetMemoryLimit() 可以在运行时动态调整，无需重启进程"
+    ],
+    "followUp": [
+      "GC Pacing 是什么？（答：Go 的 GC 不是简单地到阈值就开始标记。Pacer 会根据上一次 GC 的数据预测下次 GC 的最佳启动时机，目标是让 GC 完成时堆大小恰好接近目标值，避免过早或过晚启动导致 CPU 浪费或内存溢出）"
+    ]
+  },
+  {
+    "id": "G3-04",
+    "title": "内存泄漏排查——Go 中常见的内存泄漏场景有哪些？",
+    "category": "内存管理与 GC",
+    "categoryId": 3,
+    "level": "L2/L3",
+    "answerPoints": [
+      "goroutine 泄漏是最常见的内存泄漏：goroutine 因 channel 阻塞/未关闭/未取消 context 而永远不退出，其栈和引用的对象都无法被 GC",
+      "slice 引用未释放：大 slice 取子切片后，子切片持有对底层大数组的引用，导致整个大数组无法被 GC。修复：copy 出需要的部分",
+      "time.After 在循环中使用：每次创建新的 Timer，旧 Timer 在到期前不会被 GC，循环越快泄漏越严重",
+      "map 只增不删：Go 的 map 只增不减（删除 key 不释放桶内存），长期运行的 map 如果历史 key 很多会持续占用内存。解决：定期用新 map 替换旧 map",
+      "全局变量/缓存无上限增长：单例 cache、全局 registry 等如果没有淘汰机制，内存会持续增长",
+      "排查工具：pprof heap profile 查看内存分配热点 + goroutine profile 查看 goroutine 数量和阻塞位置 + runtime.ReadMemStats 监控堆内存趋势"
+    ],
+    "codeExample": {
+      "code": "// 泄漏：子切片持有大数组引用\nfunc getHeader(data []byte) []byte {\n\treturn data[:16] // 持有整个 data 底层数组的引用\n}\n\n// 修复：copy 出来\nfunc getHeader(data []byte) []byte {\n\theader := make([]byte, 16)\n\tcopy(header, data[:16])\n\treturn header // 独立的小数组，data 可以被 GC\n}",
+      "language": "go",
+      "explanation": "子切片和原切片共享底层数组，即使只用 16 字节，整个大数组都无法被回收。copy 出来后两者独立。"
+    },
+    "followUp": [
+      "怎么用 pprof 排查内存泄漏？（答：① go tool pprof http://host/debug/pprof/heap 抓取堆快照 ②对比两个时间点的快照 pprof -diff_base ③用 top/list 命令定位分配热点 ④用 goroutine profile 检查 goroutine 泄漏）"
+    ]
+  },
+  {
+    "id": "G3-05",
+    "title": "内存分配器——Go 的 tcmalloc 风格分配是怎么工作的？",
+    "category": "内存管理与 GC",
+    "categoryId": 3,
+    "level": "L3",
+    "answerPoints": [
+      "Go 的内存分配器基于 tcmalloc（Thread-Caching Malloc）思想，核心是三级缓存：mcache（P 级别）→ mcentral（全局分类）→ mheap（堆）",
+      "mcache：每个 P 持有一个 mcache，包含各种规格的 mspan 缓存。P 分配小对象时直接从 mcache 取，无需加锁——这是高性能的关键",
+      "对象按大小分三类：Tiny（<16B 且无指针）→ Tiny Allocator 合并多个微对象到一个内存块；Small（16B-32KB）→ 从 mcache 的对应规格 mspan 分配；Large（>32KB）→ 直接从 mheap 分配",
+      "mspan 是内存管理的基本单元：一组连续的内存页，被分割成固定大小的 slot。Go 定义了约 70 种大小规格（size class），如 8B/16B/32B/.../32KB，对象向上取整到最近的规格",
+      "mcache 的 mspan 用完后从 mcentral 获取新的 mspan（需加锁）；mcentral 也没有则从 mheap 申请新的页（可能触发向 OS 申请内存）"
+    ],
+    "followUp": [
+      "为什么 Tiny Allocator 要求无指针？（答：Tiny Allocator 将多个微对象合并到同一个内存块，如果包含指针，GC 无法确定哪些字节是指针哪些是数据，无法正确追踪引用。无指针对象不需要 GC 扫描，合并是安全的）"
+    ]
+  },
+  {
+    "id": "G3-06",
+    "title": "混合写屏障——为什么 Go 1.8 引入它替代了纯插入写屏障？",
+    "category": "内存管理与 GC",
+    "categoryId": 3,
+    "level": "L3",
+    "answerPoints": [
+      "并发 GC 的核心问题：标记阶段用户 goroutine 还在修改指针，可能导致已标黑的对象新引用了白色对象，而灰色对象到该白色对象的引用被删除——白色对象被漏标导致错误回收",
+      "Dijkstra 插入写屏障：当指针被写入时，将新指向的对象标灰。缺点：栈上的指针写入不经过写屏障（性能考虑），所以 Mark Termination 阶段必须 STW 重新扫描所有 goroutine 栈",
+      "Yuasa 删除写屏障：当指针被覆盖时，将旧指向的对象标灰。缺点：可能导致更多对象被保守地标记为存活（浮动垃圾），降低回收率",
+      "混合写屏障（Go 1.8+）：结合两者——指针写入时，同时将新值和旧值标灰。好处：栈上的指针不需要写屏障，Mark Termination 阶段不需要重新扫描栈，STW 时间大幅缩短",
+      "实际效果：Go 1.8 引入混合写屏障后，STW 时间从几毫秒降到了亚毫秒级别，几乎与堆大小无关"
+    ],
+    "followUp": [
+      "写屏障有运行时开销吗？（答：有，每次指针写入额外执行几条指令。但只在 GC 标记阶段开启写屏障，非 GC 阶段无开销。标记阶段的额外开销约 5-30%，但换来了极低的 STW 时间）"
+    ]
+  }
+]

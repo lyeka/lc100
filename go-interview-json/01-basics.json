@@ -1,0 +1,190 @@
+[
+  {
+    "id": "G1-01",
+    "title": "slice 扩容机制——append 之后旧切片还能用吗？",
+    "category": "基础与类型系统",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "background": "面试官经常给出一段 append 代码，让你判断输出结果。本质考察的是 slice header（ptr, len, cap）三元组和扩容时的内存拷贝行为。",
+    "answerPoints": [
+      "slice 底层是 reflect.SliceHeader 结构体：包含指向底层数组的指针 Data、长度 Len、容量 Cap 三个字段。slice 本身是值类型，赋值和传参时拷贝的是这个 header，而非底层数组",
+      "append 不超过 cap 时，新旧 slice 共享底层数组，修改会互相影响——这是最常见的坑。因为 append 只是在原数组上追加元素并返回新的 header（len+1），底层数组指针不变",
+      "append 超过 cap 触发扩容：Go runtime 分配一块更大的新数组，将旧数据 memmove 过去，新 slice 指向新数组，旧 slice 仍指向旧数组，两者从此完全独立",
+      "扩容策略（Go 1.18+）：不再是简单的「小于 1024 翻倍，大于 1024 增长 25%」，而是采用平滑过渡公式：newcap += (newcap + 3*threshold) / 4，其中 threshold=256。小切片仍近似翻倍，大切片增长率从 2x 平滑过渡到 1.25x",
+      "面试关键判断：看到 append 先看 cap 够不够——够则共享底层数组（写同一个位置会覆盖），不够则扩容后独立"
+    ],
+    "codeExample": {
+      "code": "func main() {\n\ts := make([]int, 3, 5)\n\ts[0], s[1], s[2] = 1, 2, 3\n\n\ta := append(s, 4) // cap=5 足够，不扩容\n\tb := append(s, 5) // cap=5 足够，不扩容\n\n\tfmt.Println(a) // [1 2 3 5]  ← 不是 [1 2 3 4]\n\tfmt.Println(b) // [1 2 3 5]\n\t// a[3] 和 b[3] 写入了底层数组同一个位置，b 覆盖了 a\n}",
+      "language": "go",
+      "explanation": "a 和 b 都从 s append，因为 cap 足够都没扩容，都写入底层数组 index=3 的位置。b 后执行，覆盖了 a 的写入。"
+    },
+    "followUp": [
+      "如果想让 a 和 b 互不影响，应该怎么做？（答：用三下标切片 s[:len(s):len(s)] 限制 cap 等于 len，强制 append 时扩容）",
+      "nil slice 和空 slice 有什么区别？（答：nil slice 的 ptr 为 nil、len/cap 均为 0；空 slice 的 ptr 指向 zerobase 特殊地址、len/cap 为 0。append 两者行为一致，但 json.Marshal 输出不同：nil→null，空→[]）"
+    ]
+  },
+  {
+    "id": "G1-02",
+    "title": "map 底层实现——哈希冲突如何解决？扩容是怎么做的？",
+    "category": "基础与类型系统",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "background": "map 是 Go 中使用最频繁的数据结构之一。面试官通常从 map 的并发安全性切入，逐步深挖到底层 hmap/bmap 结构和渐进式扩容机制。",
+    "answerPoints": [
+      "底层结构是 runtime.hmap：包含 count（元素数量）、B（桶数量的对数，桶数=2^B）、buckets（桶数组指针）、oldbuckets（旧桶指针，扩容时非 nil）等字段",
+      "每个桶（bmap）存放 8 个键值对。桶内先存 8 个 tophash（哈希值高 8 位），用于快速过滤；然后连续存 8 个 key，再连续存 8 个 value——这种 key/key/.../value/value/... 布局是为了减少 padding 浪费内存",
+      "哈希冲突用拉链法：桶满了会链接 overflow bucket。但由于每桶能存 8 个 KV，实际冲突链很短",
+      "扩容有两种触发条件：①负载因子超过 6.5（count/2^B > 6.5）触发翻倍扩容；②overflow bucket 过多但负载不高，触发等量扩容（sameSizeGrow），目的是整理稀疏桶、回收 overflow bucket",
+      "扩容是渐进式的（incremental rehash）：不是一次性搬迁所有数据，而是每次 map 操作（读写删）时搬迁 1-2 个旧桶。oldbuckets 字段指向旧桶数组，搬迁完成后置为 nil",
+      "map 不是并发安全的：并发读写会触发 fatal error（不是 panic，无法 recover）。Go 1.9+ 提供 sync.Map，或使用 map + sync.RWMutex"
+    ],
+    "followUp": [
+      "map 遍历为什么是无序的？（答：Go 故意在 range map 时加入随机起始位置，防止开发者依赖遍历顺序。这是设计决策而非实现副作用）",
+      "sync.Map 适合什么场景？什么时候该用 map+RWMutex？（答：sync.Map 适合读多写少、key 相对稳定的场景，内部用 read/dirty 双 map 实现无锁读；写多或需要遍历时 map+RWMutex 更优）"
+    ]
+  },
+  {
+    "id": "G1-03",
+    "title": "defer 的执行顺序和陷阱——defer、return、函数返回值的执行时序",
+    "category": "基础与类型系统",
+    "categoryId": 1,
+    "level": "L2",
+    "answerPoints": [
+      "defer 采用 LIFO（后进先出）栈顺序执行：先注册的后执行，后注册的先执行",
+      "关键时序：return 赋值 → defer 执行 → 函数返回。return 不是原子操作，而是先将返回值赋给返回变量，然后执行 defer，最后 RET 指令返回",
+      "defer 参数在注册时求值（值拷贝），而非执行时。这意味着 defer fmt.Println(i) 中的 i 是注册时的值，不是 defer 执行时的值",
+      "如果 defer 使用闭包引用外部变量，则闭包捕获的是变量的引用（而非值），defer 执行时读到的是变量最新值",
+      "命名返回值 + defer 可以修改返回值：因为 defer 在 return 赋值之后、RET 之前执行，此时修改命名返回值会改变最终返回结果"
+    ],
+    "codeExample": {
+      "code": "func f() (result int) {\n\tdefer func() {\n\t\tresult++  // defer 修改命名返回值\n\t}()\n\treturn 0  // 先赋值 result=0，再执行 defer result++\n}\n// f() 返回 1，不是 0\n\nfunc g() int {\n\tresult := 0\n\tdefer func() {\n\t\tresult++  // 修改的是局部变量，不影响返回值\n\t}()\n\treturn result  // 匿名返回值，return 时已拷贝\n}\n// g() 返回 0",
+      "language": "go",
+      "explanation": "f() 使用命名返回值，defer 能直接修改返回值；g() 使用匿名返回值，return 时值已拷贝到返回寄存器，defer 修改的是局部变量。"
+    },
+    "followUp": [
+      "defer 在 for 循环里会有什么问题？（答：defer 在函数返回时才执行，不是循环结束时。循环中大量 defer 会堆积导致资源泄漏，应在循环体内用匿名函数包裹 defer 或手动释放）",
+      "Go 1.14 对 defer 做了什么优化？（答：引入 open-coded defer，在编译期将 defer 直接展开为普通代码，避免了堆分配 _defer 结构体的开销，性能接近直接调用）"
+    ]
+  },
+  {
+    "id": "G1-04",
+    "title": "for range 的复制陷阱——遍历时修改元素为什么不生效？",
+    "category": "基础与类型系统",
+    "categoryId": 1,
+    "level": "L2",
+    "answerPoints": [
+      "for range 遍历 slice/array 时，循环变量是元素的值拷贝，不是引用。修改循环变量不会影响原集合",
+      "Go 1.22 之前，for range 的循环变量在整个循环中是同一个变量（地址不变），每次迭代只是重新赋值。这导致闭包/goroutine 捕获循环变量时，最终都引用同一个变量的最后一个值",
+      "Go 1.22 修复了这个问题：每次迭代创建新的循环变量（per-iteration variable），闭包捕获的是各自迭代的独立副本",
+      "遍历 map 时同样是值拷贝，且遍历顺序随机。遍历期间可以删除 key（安全），新增的 key 可能出现也可能不出现在后续迭代中"
+    ],
+    "codeExample": {
+      "code": "// Go 1.21 及之前的经典陷阱\nfuncs := make([]func(), 3)\nfor i := 0; i < 3; i++ {\n\tfuncs[i] = func() { fmt.Println(i) }\n}\nfor _, f := range funcs {\n\tf() // 全部输出 3，不是 0 1 2\n}\n\n// 修复方式一：闭包传参\nfor i := 0; i < 3; i++ {\n\ti := i // 重新声明，每次迭代独立副本\n\tfuncs[i] = func() { fmt.Println(i) }\n}\n\n// Go 1.22+：默认每次迭代创建新变量，无需手动修复",
+      "language": "go",
+      "explanation": "Go 1.22 之前闭包捕获的是同一个 i 变量，循环结束后 i=3，所以全部输出 3。经典修复是 i := i 重新声明。"
+    },
+    "followUp": [
+      "for range 一个 slice 时，如果循环体中 append 了新元素，会遍历到吗？（答：不会。range 在开始时就确定了遍历长度，后续 append 不影响已确定的迭代次数）"
+    ]
+  },
+  {
+    "id": "G1-05",
+    "title": "struct 内存对齐——为什么调整字段顺序能减少内存占用？",
+    "category": "基础与类型系统",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "answerPoints": [
+      "CPU 访问内存时按字长（word size）对齐读取效率最高。Go 编译器会在 struct 字段之间插入 padding 以满足对齐要求",
+      "对齐规则：每个字段的偏移量必须是其自身对齐值的整数倍。对齐值 = min(字段大小, 平台最大对齐值)。struct 整体大小必须是最大字段对齐值的整数倍",
+      "bool 占 1 字节对齐 1、int32 占 4 字节对齐 4、int64/指针占 8 字节对齐 8。字段顺序不同，padding 不同，struct 总大小可能差很多",
+      "优化原则：按字段大小从大到小排列，可以最小化 padding。实际工程中，把相同大小的字段放一起也能减少浪费",
+      "使用 unsafe.Sizeof() 查看类型大小，unsafe.Alignof() 查看对齐值，unsafe.Offsetof() 查看字段偏移"
+    ],
+    "codeExample": {
+      "code": "type Bad struct {\n\ta bool   // 1 byte + 7 padding\n\tb int64  // 8 bytes\n\tc bool   // 1 byte + 7 padding\n}\n// sizeof(Bad) = 24\n\ntype Good struct {\n\tb int64  // 8 bytes\n\ta bool   // 1 byte\n\tc bool   // 1 byte + 6 padding\n}\n// sizeof(Good) = 16  节省 33%",
+      "language": "go",
+      "explanation": "Bad 结构体中 a 和 c 各自后面都有 7 字节 padding；Good 把 int64 放前面，两个 bool 紧挨在一起，只需 6 字节 padding。"
+    },
+    "followUp": [
+      "空结构体 struct{} 占多大内存？有什么用途？（答：0 字节。常用于 map[K]struct{} 做集合、channel 做信号通知 chan struct{}，不占内存）"
+    ]
+  },
+  {
+    "id": "G1-06",
+    "title": "string 底层结构——string 和 []byte 互转的性能代价",
+    "category": "基础与类型系统",
+    "categoryId": 1,
+    "level": "L2",
+    "answerPoints": [
+      "string 底层是 reflect.StringHeader：包含指向字节数组的指针 Data 和长度 Len。string 是不可变的（immutable），任何修改都会创建新的字符串",
+      "[]byte 底层是 reflect.SliceHeader：比 string 多一个 Cap 字段。[]byte 是可变的",
+      "string 和 []byte 互转默认会发生内存拷贝，因为 string 的不可变性必须得到保证——如果 []byte 转 string 不拷贝，后续修改 []byte 会破坏 string 的不可变约定",
+      "编译器在某些场景会优化掉拷贝：① map 查找 m[string(b)] 不拷贝 ② 字符串拼接 s + string(b) 中的临时转换不拷贝 ③ for range []byte(s) 不拷贝",
+      "unsafe 零拷贝转换：可以用 unsafe.Pointer 直接转换避免拷贝，但必须确保转换后不修改原始 []byte，否则破坏 string 不可变性导致未定义行为"
+    ],
+    "codeExample": {
+      "code": "// 标准转换（有内存拷贝）\ns := \"hello\"\nb := []byte(s)  // 拷贝\ns2 := string(b) // 拷贝\n\n// unsafe 零拷贝（Go 1.20+ 推荐方式）\nimport \"unsafe\"\nfunc StringToBytes(s string) []byte {\n\treturn unsafe.Slice(unsafe.StringData(s), len(s))\n}\nfunc BytesToString(b []byte) string {\n\treturn unsafe.String(unsafe.SliceData(b), len(b))\n}",
+      "language": "go",
+      "explanation": "Go 1.20 提供了 unsafe.StringData/SliceData 等函数，是官方推荐的零拷贝转换方式，比直接操作 reflect.Header 更安全。"
+    },
+    "followUp": [
+      "字符串拼接有哪些方式？性能排序如何？（答：+ 拼接最慢（每次分配新内存）、fmt.Sprintf 次之、strings.Builder 和 bytes.Buffer 最快（预分配 + 批量写入），大量拼接首选 strings.Builder）"
+    ]
+  },
+  {
+    "id": "G1-07",
+    "title": "make 和 new 的区别——什么时候用哪个？",
+    "category": "基础与类型系统",
+    "categoryId": 1,
+    "level": "L2",
+    "answerPoints": [
+      "new(T) 分配内存并返回 *T 指针，内存被零值初始化。适用于所有类型，但不做任何额外初始化。new 返回的 slice/map/channel 是零值（nil），不能直接使用",
+      "make(T, args) 只能用于 slice、map、channel 三种引用类型，返回初始化后的 T（不是指针）。make 会完成内部数据结构的初始化：slice 分配底层数组、map 分配哈希桶、channel 分配 hchan 结构和缓冲区",
+      "本质区别：new 只分配内存+零值填充，make 分配内存+初始化内部结构。对于 slice/map/channel，new 出来的是 nil 不能用，必须用 make",
+      "实践中 new 用得很少，更常见的写法是 &T{} 字面量取地址，功能等价但可以同时设置字段值"
+    ],
+    "followUp": [
+      "new 出来的内存一定在堆上吗？（答：不一定。Go 编译器做逃逸分析，如果 new 的结果没有逃逸出函数，会分配在栈上）"
+    ]
+  },
+  {
+    "id": "G1-08",
+    "title": "值传递还是引用传递——Go 函数参数传递机制",
+    "category": "基础与类型系统",
+    "categoryId": 1,
+    "level": "L2",
+    "answerPoints": [
+      "Go 中所有传参都是值传递（pass by value），没有引用传递。传参时永远是拷贝一份副本给函数",
+      "slice 传参拷贝的是 SliceHeader（24 字节：ptr+len+cap），不拷贝底层数组。所以函数内修改元素会影响原 slice（共享底层数组），但 append 触发扩容后两者独立",
+      "map 传参拷贝的是 *hmap 指针（8 字节），函数内修改 map 会影响原 map。map 本身就是指针，这也是为什么 nil map 可以读但不能写",
+      "channel 传参拷贝的是 *hchan 指针（8 字节），和 map 类似",
+      "struct 传参是完整的深拷贝。大 struct 传参代价高，应该传指针。但小 struct（几十字节以内）传值更优——避免逃逸到堆、避免 GC 追踪",
+      "interface 传参拷贝的是 iface/eface 结构体（16 字节），内部持有的数据可能是指针也可能是值"
+    ],
+    "followUp": [
+      "传 *slice 和传 slice 有什么区别？什么时候需要传 *slice？（答：需要在函数内 append 并让调用方看到效果时传 *slice，因为 append 可能改变 header 的 ptr/len/cap）"
+    ]
+  },
+  {
+    "id": "G1-09",
+    "title": "channel 和 map 的零值行为——nil channel 能读写吗？",
+    "category": "基础与类型系统",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "answerPoints": [
+      "nil map：读取返回零值（不 panic），写入触发 panic。len 返回 0，delete 不 panic（静默忽略）",
+      "nil slice：读取越界会 panic（和空 slice 一样），append 正常工作（会分配底层数组）。len/cap 返回 0",
+      "nil channel：读取永久阻塞，写入永久阻塞，close 触发 panic。这个特性在 select 中有妙用——将 channel 置为 nil 可以禁用某个 case",
+      "已关闭的 channel：读取立即返回零值（不阻塞），写入触发 panic，再次 close 触发 panic",
+      "这四种行为组合是高频面试题，经常以表格形式考察"
+    ],
+    "codeExample": {
+      "code": "//        | nil channel | closed channel\n// -------|-------------|---------------\n// read   | block       | zero value, false\n// write  | block       | panic\n// close  | panic       | panic\n\n// select 中利用 nil channel 禁用分支\nvar ch1, ch2 <-chan int\nch1 = producer1()\nch2 = producer2()\nfor ch1 != nil || ch2 != nil {\n\tselect {\n\tcase v, ok := <-ch1:\n\t\tif !ok { ch1 = nil; continue } // 关闭后置 nil，禁用此 case\n\t\tprocess(v)\n\tcase v, ok := <-ch2:\n\t\tif !ok { ch2 = nil; continue }\n\t\tprocess(v)\n\t}\n}",
+      "language": "go",
+      "explanation": "将已关闭的 channel 置为 nil，select 就不会再选中这个 case（nil channel 永久阻塞），实现优雅的多路合并。"
+    },
+    "followUp": [
+      "为什么 Go 设计成向已关闭的 channel 发送数据会 panic 而不是静默忽略？（答：这是 fail-fast 哲学——向关闭的 channel 发送意味着程序逻辑错误，应该在编码阶段就发现。关闭操作应由发送方负责，遵循 'sender closes' 原则）"
+    ]
+  }
+]

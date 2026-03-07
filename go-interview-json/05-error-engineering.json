@@ -1,0 +1,102 @@
+[
+  {
+    "id": "G5-01",
+    "title": "error 设计哲学——Go 为什么不用 try/catch？三种 error 处理策略",
+    "category": "错误处理与工程实践",
+    "categoryId": 5,
+    "level": "L2",
+    "answerPoints": [
+      "Go 选择显式 error 返回而非异常机制：error 是普通值（实现了 error 接口的任意类型），错误处理是正常控制流的一部分，不是跳转到另一个执行栈的异常机制",
+      "设计哲学：Errors are values（Rob Pike）。错误是程序逻辑的一等公民，应该像处理其他返回值一样处理它，而不是藏在 try/catch 块中被忽略",
+      "三种 error 策略（Dave Cheney 提出）：①Sentinel Error（哨兵错误）：预定义的全局 error 变量，如 io.EOF、sql.ErrNoRows，用 == 比较。缺点：创造了包间的源码依赖 ②Error Type（错误类型）：自定义实现 error 接口的类型，如 *os.PathError，用类型断言匹配。可以携带额外上下文信息 ③Opaque Error（不透明错误）：只关心是否有错，不关心具体类型。接口断言检查行为而非类型（如 Timeout() bool）",
+      "Go 1.13 引入 errors.Is/As/Unwrap 支持 error 链：fmt.Errorf(\"%w\", err) 包装错误，errors.Is 递归检查链中是否匹配，errors.As 递归提取特定类型的错误。取代了之前的 == 比较和类型断言",
+      "最佳实践：底层库返回有语义的 error（sentinel 或自定义类型）；中间层用 fmt.Errorf(\"%w\", err) 添加上下文并传播；顶层（main/handler）记录日志或返回给用户"
+    ],
+    "codeExample": {
+      "code": "// Go 1.13+ error wrapping & unwrapping\nvar ErrNotFound = errors.New(\"not found\")\n\nfunc getUser(id int) (*User, error) {\n\trow := db.QueryRow(\"SELECT ...\")\n\tif err := row.Scan(&u); err != nil {\n\t\tif errors.Is(err, sql.ErrNoRows) {\n\t\t\treturn nil, fmt.Errorf(\"user %d: %w\", id, ErrNotFound)\n\t\t}\n\t\treturn nil, fmt.Errorf(\"query user %d: %w\", id, err)\n\t}\n\treturn &u, nil\n}\n\n// 调用方\nuser, err := getUser(42)\nif errors.Is(err, ErrNotFound) {\n\t// 处理 not found\n}\nvar pathErr *os.PathError\nif errors.As(err, &pathErr) {\n\t// 处理文件路径错误\n}",
+      "language": "go",
+      "explanation": "%w 动词包装错误形成链，errors.Is 沿链查找匹配的 sentinel error，errors.As 沿链提取特定类型的错误。"
+    },
+    "followUp": [
+      "fmt.Errorf 用 %v 和 %w 有什么区别？（答：%w 会保留原始 error 的引用形成 error 链，支持 errors.Is/As 解包；%v 只是将 error 转为字符串嵌入新消息，原始 error 信息丢失无法解包）"
+    ]
+  },
+  {
+    "id": "G5-02",
+    "title": "panic 和 recover——什么时候该用 panic？recover 的限制条件",
+    "category": "错误处理与工程实践",
+    "categoryId": 5,
+    "level": "L2/L3",
+    "answerPoints": [
+      "panic 触发时会停止当前函数执行，逆序执行所有 defer，然后沿调用栈向上传播。如果没有 recover，最终 crash 整个 goroutine（不是整个进程，只有该 goroutine 会 crash，但由于 main goroutine crash 会导致进程退出）",
+      "recover 只能在 defer 函数中调用，且只能捕获当前 goroutine 的 panic。在其他地方调用 recover 始终返回 nil",
+      "什么时候用 panic：①真正不可恢复的错误（编程错误，如 index out of range、nil pointer）②init 函数中资源初始化失败 ③违反了函数的前置条件（断言失败）。对外 API 不应该 panic，应该返回 error",
+      "库代码的 panic 捕获模式：库内部可以用 panic 简化深层递归中的错误传播（如 encoding/json 内部），但在 exported function 的入口用 recover 捕获并转为 error 返回。不让 panic 泄露到库外部",
+      "HTTP server 的 recover 中间件：net/http 的 DefaultServeMux 内置了 recover，单个请求的 panic 不会 crash 整个 server。自定义中间件应在最外层 defer recover 并返回 500"
+    ],
+    "codeExample": {
+      "code": "// recover 必须在 defer 中使用\nfunc safeDiv(a, b int) (result int, err error) {\n\tdefer func() {\n\t\tif r := recover(); r != nil {\n\t\t\terr = fmt.Errorf(\"panic: %v\", r)\n\t\t}\n\t}()\n\treturn a / b, nil // b==0 时 panic\n}\n\nresult, err := safeDiv(10, 0)\n// result=0, err=\"panic: runtime error: integer divide by zero\"\n\n// ❌ 错误用法：不在 defer 中\nfunc wrong() {\n\tif r := recover(); r != nil { /* 永远不会执行 */ }\n\tpanic(\"boom\")\n}",
+      "language": "go",
+      "explanation": "recover 只在 defer 中有效。safeDiv 用 defer+recover 将 panic 转为 error，是库代码的标准防御模式。"
+    },
+    "followUp": [
+      "一个 goroutine panic 了会影响其他 goroutine 吗？（答：如果没有 recover，panic 会导致整个进程 crash，所有 goroutine 都会终止。每个启动 goroutine 的地方都应该考虑是否需要 recover 保护）"
+    ]
+  },
+  {
+    "id": "G5-03",
+    "title": "Go Module——依赖管理机制和 MVS 算法",
+    "category": "错误处理与工程实践",
+    "categoryId": 5,
+    "level": "L2",
+    "answerPoints": [
+      "Go Module 是 Go 1.11 引入的官方依赖管理（Go 1.16 默认开启）。核心文件：go.mod（声明模块路径和依赖）和 go.sum（依赖的哈希校验）",
+      "MVS（Minimal Version Selection，最小版本选择）：与 npm/pip 的「选最新兼容版本」不同，Go 选择满足所有约束的最小版本。好处：构建可重现，不会因为新版本发布而改变依赖树",
+      "语义化导入版本（Semantic Import Versioning）：v0/v1 的导入路径不变，v2+ 必须在导入路径末尾加 /v2（如 github.com/foo/bar/v2）。这保证了不同大版本可以共存于同一项目",
+      "go mod tidy：清理 go.mod 中不再使用的依赖，添加缺失的依赖。是保持 go.mod 干净的最常用命令",
+      "replace 和 retract 指令：replace 用于本地开发时替换依赖路径（调试/fork）；retract 标记某个已发布版本有问题不应使用。vendor 目录用于离线构建或锁定依赖源码"
+    ],
+    "followUp": [
+      "go.sum 的作用是什么？为什么要提交到版本控制？（答：go.sum 记录每个依赖的哈希值，用于验证下载的依赖未被篡改（supply chain security）。提交到版本控制确保所有开发者和 CI 使用完全相同的依赖内容）"
+    ]
+  },
+  {
+    "id": "G5-04",
+    "title": "testing 包——表驱动测试、benchmark 和覆盖率",
+    "category": "错误处理与工程实践",
+    "categoryId": 5,
+    "level": "L2",
+    "answerPoints": [
+      "表驱动测试（Table-Driven Test）是 Go 社区标准的测试模式：将测试用例定义为 slice of struct，循环遍历执行，每个 case 用 t.Run 创建子测试。优点：新增 case 只需加一行，不需要写新函数",
+      "t.Run(name, func) 创建子测试：支持 -run 正则过滤运行特定 case，支持 t.Parallel() 并行执行",
+      "Benchmark：func BenchmarkXxx(b *testing.B)，用 b.N 控制循环次数（框架自动调整）。go test -bench=. -benchmem 显示 ns/op、B/op（每次操作的内存分配）、allocs/op（每次操作的分配次数）",
+      "测试覆盖率：go test -cover 显示覆盖率百分比，go test -coverprofile=c.out + go tool cover -html=c.out 生成可视化报告",
+      "TestMain：func TestMain(m *testing.M) 是测试的入口点，用于设置全局 setup/teardown（如启动测试数据库、加载 fixtures）。必须调用 os.Exit(m.Run())"
+    ],
+    "codeExample": {
+      "code": "func TestAdd(t *testing.T) {\n\tcases := []struct {\n\t\tname     string\n\t\ta, b     int\n\t\texpected int\n\t}{\n\t\t{\"positive\", 1, 2, 3},\n\t\t{\"negative\", -1, -2, -3},\n\t\t{\"zero\", 0, 0, 0},\n\t\t{\"mixed\", -1, 1, 0},\n\t}\n\tfor _, tc := range cases {\n\t\tt.Run(tc.name, func(t *testing.T) {\n\t\t\tgot := Add(tc.a, tc.b)\n\t\t\tif got != tc.expected {\n\t\t\t\tt.Errorf(\"Add(%d,%d) = %d, want %d\",\n\t\t\t\t\ttc.a, tc.b, got, tc.expected)\n\t\t\t}\n\t\t})\n\t}\n}\n\nfunc BenchmarkAdd(b *testing.B) {\n\tfor i := 0; i < b.N; i++ {\n\t\tAdd(1, 2)\n\t}\n}",
+      "language": "go",
+      "explanation": "表驱动测试：一个函数覆盖所有边界条件，新增 case 只需加一行。Benchmark 让框架自动决定 b.N 以获得稳定结果。"
+    },
+    "followUp": [
+      "t.Parallel() 有什么注意事项？（答：①调用 t.Parallel() 的子测试会并行执行，但闭包中捕获循环变量的问题（Go 1.22 前）同样存在 ②并行测试不能依赖共享状态 ③t.Parallel() 必须在子测试开头调用）"
+    ]
+  },
+  {
+    "id": "G5-05",
+    "title": "init 函数——执行顺序、使用场景和为什么要谨慎使用",
+    "category": "错误处理与工程实践",
+    "categoryId": 5,
+    "level": "L2",
+    "answerPoints": [
+      "init 函数在 main 之前自动执行，每个包可以有多个 init 函数。执行顺序：先递归初始化所有 import 的包（按依赖拓扑序），每个包内按文件名字母序执行 init",
+      "同一文件内多个 init 按声明顺序执行。init 不能被手动调用，不能被引用",
+      "合法使用场景：注册驱动/编解码器（如 _ \"image/png\" 触发 png 包的 init 注册解码器到 image 包）、初始化无法在声明时完成的包级变量、校验/设置程序运行前的先决条件",
+      "为什么要谨慎使用：①init 是隐式执行，增加了代码的理解难度和不可预测性 ②init 中的 panic 无法被 recover（因为没有调用方来 recover）③init 中的副作用（连接数据库、读配置文件）会让测试变得困难——测试导入包就会触发 init ④多个 init 的执行顺序依赖文件名排序，脆弱且不直观",
+      "替代方案：将初始化逻辑放到显式的 New() 或 Setup() 函数中，由 main 或测试代码显式调用。这使依赖关系清晰可控"
+    ],
+    "followUp": [
+      "import _ \"pkg\" 的下划线是什么意思？（答：空白导入，不使用包的导出标识符，只执行包的 init 函数。常见于注册数据库驱动如 _ \"github.com/go-sql-driver/mysql\"、注册图片解码器如 _ \"image/png\"）"
+    ]
+  }
+]

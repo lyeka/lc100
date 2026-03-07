@@ -1,0 +1,108 @@
+[
+  {
+    "id": "G4-01",
+    "title": "interface 底层实现——eface 和 iface 有什么区别？",
+    "category": "接口与泛型",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "answerPoints": [
+      "Go 的 interface 底层有两种结构体：eface（empty interface，即 any/interface{}）和 iface（non-empty interface，有方法的接口）",
+      "eface 结构：{ _type *_type, data unsafe.Pointer }。_type 指向类型元信息（大小、对齐、哈希、GC 相关），data 指向实际数据。只有 16 字节",
+      "iface 结构：{ tab *itab, data unsafe.Pointer }。itab 包含接口类型和实际类型的信息，以及方法表（函数指针数组）。data 同样指向实际数据",
+      "itab 的方法表是在接口赋值时计算并缓存的：Go runtime 维护一个全局的 itab 缓存（哈希表），同一对（接口类型, 实际类型）只计算一次，后续复用。方法匹配算法是双指针线性扫描（两边都按方法名排序）",
+      "data 指针的存储规则：如果实际值大小 ≤ 指针大小（8 字节在 64 位机器上），直接存值；否则 data 指向堆上分配的副本。赋值给 interface 时可能触发堆分配（逃逸）",
+      "interface 比较（==）：两个 interface 相等当且仅当 type 相同且 data 相同。如果底层类型不可比较（如 slice/map/func），比较会 panic"
+    ],
+    "codeExample": {
+      "code": "// eface: empty interface\nvar a interface{} = 42\n// a 底层: eface{ _type: *intType, data: 指向 42 }\n\n// iface: non-empty interface\nvar w io.Writer = os.Stdout\n// w 底层: iface{ tab: *itab(io.Writer, *os.File), data: 指向 os.Stdout }\n\n// interface 判 nil 的坑\nvar p *int = nil\nvar i interface{} = p\nfmt.Println(i == nil)  // false!\n// i 的 eface{ _type: *intType, data: nil }\n// _type 不为 nil，所以 i != nil",
+      "language": "go",
+      "explanation": "将 nil 指针赋给 interface 后，interface 不是 nil——因为它的 type 字段已经有值了。这是 Go 最经典的 interface 陷阱。"
+    },
+    "followUp": [
+      "如何正确判断 interface 内部值是否为 nil？（答：用 reflect.ValueOf(i).IsNil()，或在函数中直接返回 nil 而非返回 typed nil 指针。最佳实践是让函数的 error 返回值直接返回 nil，不要返回一个 nil 的具体 error 类型指针）"
+    ]
+  },
+  {
+    "id": "G4-02",
+    "title": "值接收者 vs 指针接收者——方法集规则与 interface 满足条件",
+    "category": "接口与泛型",
+    "categoryId": 4,
+    "level": "L2",
+    "answerPoints": [
+      "值接收者方法 func (t T) M()：T 和 *T 都可以调用。因为编译器可以自动取地址",
+      "指针接收者方法 func (t *T) M()：只有 *T 可以调用。值类型 T 不能调用，因为值可能是临时值（不可寻址），取地址无意义",
+      "方法集规则直接决定 interface 满足条件：如果接口要求方法 M，而 M 是指针接收者方法，那么只有 *T 实现了该接口，T 没有",
+      "设计选择：大 struct 用指针接收者（避免拷贝开销）；需要修改接收者状态用指针接收者；小 struct 且方法不修改状态可以用值接收者",
+      "一致性原则：同一类型的所有方法最好统一用值接收者或指针接收者，避免混用导致 interface 满足关系不直观"
+    ],
+    "codeExample": {
+      "code": "type Sizer interface {\n\tSize() int\n}\n\ntype File struct { size int }\nfunc (f *File) Size() int { return f.size } // 指针接收者\n\nvar _ Sizer = &File{} // ✅ *File 实现了 Sizer\nvar _ Sizer = File{}  // ❌ 编译错误：File 没有实现 Sizer\n\n// 如果改为值接收者：\n// func (f File) Size() int { return f.size }\n// 则 File 和 *File 都实现了 Sizer",
+      "language": "go",
+      "explanation": "指针接收者的方法只属于 *T 的方法集，不属于 T 的方法集。所以 T 类型的值不满足要求该方法的接口。"
+    },
+    "followUp": [
+      "为什么 Go 不让值类型调用指针接收者的方法来满足接口？（答：接口值内部存的可能是不可寻址的临时副本，无法取地址调用指针方法。编译器在直接调用时可以自动取地址，但通过 interface 调用时已经丢失了原始值的地址信息）"
+    ]
+  },
+  {
+    "id": "G4-03",
+    "title": "类型断言与类型开关——运行时类型检查的代价",
+    "category": "接口与泛型",
+    "categoryId": 4,
+    "level": "L2",
+    "answerPoints": [
+      "类型断言 v.(T)：从 interface 中提取具体类型的值。断言失败会 panic；用 v, ok := i.(T) 二值形式避免 panic",
+      "类型开关 switch v := i.(type)：匹配多个类型，比连续 if-else 类型断言更清晰高效。case 中可以匹配接口类型（满足接口的都匹配）",
+      "类型断言的底层：对于 iface，检查 itab 中的具体类型是否匹配目标类型；对于 eface，检查 _type 是否匹配。匹配后直接取出 data 指针，无需额外分配",
+      "性能代价：类型断言本身很快（一次指针比较），但频繁的 interface 装箱/拆箱会导致堆分配。热路径上应避免不必要的 interface 转换",
+      "空接口断言的常见用途：从 context.Value() 取值、从 json.Unmarshal 到 map[string]interface{} 中提取值、框架的中间件/插件参数传递"
+    ],
+    "followUp": [
+      "类型断言和反射有什么区别？什么时候用反射？（答：类型断言要求编译期知道目标类型，是零开销的类型转换；反射在运行时动态检查和操作类型，开销大得多。反射用于序列化框架、ORM、依赖注入等需要处理任意类型的基础设施代码，业务代码应避免使用）"
+    ]
+  },
+  {
+    "id": "G4-04",
+    "title": "泛型（Go 1.18+）——类型参数、约束和何时该用泛型",
+    "category": "接口与泛型",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "answerPoints": [
+      "Go 1.18 引入泛型：type parameters（类型参数）+ constraints（约束）。语法：func F[T constraint](x T) T 或 type Set[T comparable] struct{...}",
+      "约束就是接口：普通接口作约束限制类型必须有哪些方法；类型集合接口（~int | ~float64）限制底层类型。comparable 约束表示类型支持 == 和 !=",
+      "Go 泛型实现策略：混合方案——GCShape Stenciling。相同 GC shape（指针类型共享 shape、值类型各自 shape）的类型参数共享一份编译后的代码，通过字典传递类型信息。不是纯模板展开（避免代码膨胀），也不是纯类型擦除（保留了一定的类型特化性能）",
+      "何时用泛型：①通用数据结构（栈、队列、集合、树）②通用算法（排序、查找、过滤、Map/Reduce）③减少 interface{} 带来的类型断言和运行时开销。不要为了泛型而泛型——如果只有 2-3 个类型，写具体类型版本更清晰",
+      "局限性：Go 泛型不支持方法的类型参数（方法不能有自己的 type parameter）、不支持特化、不支持变长类型参数。这是有意为之的简单性取舍"
+    ],
+    "codeExample": {
+      "code": "// 泛型 Map 函数\nfunc Map[T, U any](s []T, f func(T) U) []U {\n\tresult := make([]U, len(s))\n\tfor i, v := range s {\n\t\tresult[i] = f(v)\n\t}\n\treturn result\n}\n\n// 类型集合约束\ntype Number interface {\n\t~int | ~int64 | ~float64\n}\nfunc Sum[T Number](nums []T) T {\n\tvar total T\n\tfor _, n := range nums {\n\t\ttotal += n\n\t}\n\treturn total\n}\n\n// 使用\nstrings := Map([]int{1, 2, 3}, strconv.Itoa)\ntotal := Sum([]float64{1.1, 2.2, 3.3})",
+      "language": "go",
+      "explanation": "Map 函数接受任意类型 slice 和转换函数，返回新类型 slice。Sum 用类型集合约束限定只接受数值类型。"
+    },
+    "followUp": [
+      "Go 泛型的 GCShape Stenciling 和 C++ 模板有什么区别？（答：C++ 为每个类型实例化都生成独立的机器代码（full stenciling），代码膨胀严重但性能最优。Go 按 GC shape 分组共享代码，指针类型共享一份、每种值类型各一份，平衡了性能和二进制体积）"
+    ]
+  },
+  {
+    "id": "G4-05",
+    "title": "reflect 反射机制——三大法则与性能代价",
+    "category": "接口与泛型",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "answerPoints": [
+      "反射三大法则（Rob Pike 提出）：①从 interface 值可以获得 reflect 对象（reflect.ValueOf/TypeOf）②从 reflect 对象可以获得 interface 值（Value.Interface()）③要修改 reflect 对象，值必须是可设置的（settable，即传入指针的 Elem）",
+      "reflect.Type 描述类型信息：方法、字段、大小、对齐等。reflect.Value 描述值信息：可以读取、修改、调用方法",
+      "使用场景：JSON/XML 序列化（encoding 包）、ORM 框架（struct → SQL）、依赖注入、RPC 编解码、测试框架中的断言",
+      "性能代价：反射操作比直接操作慢 10-100 倍——类型检查在运行时进行、无法内联优化、大量 interface 装箱导致堆分配。热路径上应避免反射",
+      "优化手段：用 reflect.Type 做一次性的类型分析并缓存结果（codec 缓存模式）；如果类型有限，用 type switch 代替反射；Go 1.18+ 用泛型替代部分反射用法"
+    ],
+    "codeExample": {
+      "code": "// 反射读取 struct 字段（类似 JSON 序列化的核心逻辑）\nfunc PrintFields(v interface{}) {\n\trv := reflect.ValueOf(v)\n\tif rv.Kind() == reflect.Ptr {\n\t\trv = rv.Elem()\n\t}\n\trt := rv.Type()\n\tfor i := 0; i < rt.NumField(); i++ {\n\t\tfield := rt.Field(i)\n\t\tvalue := rv.Field(i)\n\t\ttag := field.Tag.Get(\"json\")\n\t\tfmt.Printf(\"%s (%s): %v\\n\", field.Name, tag, value)\n\t}\n}\n\ntype User struct {\n\tName string `json:\"name\"`\n\tAge  int    `json:\"age\"`\n}\nPrintFields(&User{\"Alice\", 30})\n// Name (name): Alice\n// Age (age): 30",
+      "language": "go",
+      "explanation": "通过反射遍历 struct 的所有字段并读取 tag，这就是 encoding/json 等序列化库的核心原理。"
+    },
+    "followUp": [
+      "为什么 encoding/json 性能不好？有什么替代方案？（答：encoding/json 每次 Marshal/Unmarshal 都用反射遍历字段。替代方案：① json-iterator/go 通过缓存反射信息提速 ② easyjson/ffjson 通过代码生成避免反射 ③ Go 1.21+ 计划中的 encoding/json/v2 改进了性能）"
+    ]
+  }
+]
