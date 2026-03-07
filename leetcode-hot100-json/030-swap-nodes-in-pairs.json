@@ -5,6 +5,12 @@
   "category": "链表",
   "difficulty": "Medium",
   "description": "两两交换链表中相邻的节点，返回交换后的链表。不能只修改值，必须交换节点。",
+  "examples": [
+    {
+      "input": "head = [1,2,3,4]",
+      "output": "[2,1,4,3]"
+    }
+  ],
   "hint": {
     "core": "哨兵节点 + 每次处理两个节点的指针交换",
     "keyPoints": [

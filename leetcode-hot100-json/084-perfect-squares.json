@@ -5,6 +5,18 @@
   "category": "动态规划/BFS",
   "difficulty": "Medium",
   "description": "给定正整数 n，找到若干个完全平方数使其和等于 n，返回所需的最少完全平方数个数。",
+  "examples": [
+    {
+      "input": "n = 12",
+      "output": "3",
+      "explanation": "12 = 4 + 4 + 4"
+    },
+    {
+      "input": "n = 13",
+      "output": "2",
+      "explanation": "13 = 4 + 9"
+    }
+  ],
   "hint": {
     "core": "完全背包，dp[i] = min(dp[i], dp[i-j*j] + 1)，物品是所有完全平方数",
     "keyPoints": [

@@ -5,6 +5,16 @@
   "category": "数组",
   "difficulty": "Hard",
   "description": "给定未排序的整数数组，找出其中缺失的最小正整数。要求 O(n) 时间、O(1) 空间。",
+  "examples": [
+    {
+      "input": "nums = [1,2,0]",
+      "output": "3"
+    },
+    {
+      "input": "nums = [3,4,-1,1]",
+      "output": "2"
+    }
+  ],
   "hint": {
     "core": "原地哈希，将每个值 v 交换到索引 v-1 的位置，再扫描找第一个不匹配的",
     "keyPoints": [

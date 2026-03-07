@@ -5,6 +5,12 @@
   "category": "堆",
   "difficulty": "Medium",
   "description": "找到数组中第 k 个最大的元素（排序后从大到小第 k 个）。",
+  "examples": [
+    {
+      "input": "nums = [3,2,1,5,6,4], k = 2",
+      "output": "5"
+    }
+  ],
   "hint": {
     "core": "快速选择算法（partition）或小顶堆维护 k 个最大元素",
     "keyPoints": [

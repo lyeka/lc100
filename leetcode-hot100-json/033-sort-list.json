@@ -5,6 +5,12 @@
   "category": "链表",
   "difficulty": "Medium",
   "description": "对链表进行排序。要求 O(n log n) 时间、O(1) 空间。",
+  "examples": [
+    {
+      "input": "head = [4,2,1,3]",
+      "output": "[1,2,3,4]"
+    }
+  ],
   "hint": {
     "core": "归并排序——快慢指针找中点、递归拆分、合并有序链表",
     "keyPoints": [

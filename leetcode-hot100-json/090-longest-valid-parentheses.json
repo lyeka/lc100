@@ -5,6 +5,16 @@
   "category": "动态规划/栈",
   "difficulty": "Hard",
   "description": "给定只包含 '(' 和 ')' 的字符串，找出最长有效括号子串的长度。",
+  "examples": [
+    {
+      "input": "s = \"(()\"",
+      "output": "2"
+    },
+    {
+      "input": "s = \")()())\"",
+      "output": "4"
+    }
+  ],
   "hint": {
     "core": "栈存未匹配括号的索引，匹配时用当前索引减栈顶得长度；或 DP 以 ')' 结尾向前匹配",
     "keyPoints": [

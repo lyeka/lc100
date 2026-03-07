@@ -5,6 +5,12 @@
   "category": "二分查找",
   "difficulty": "Medium",
   "description": "在经过旋转的升序数组（无重复元素）中找到最小值。要求 O(log n)。",
+  "examples": [
+    {
+      "input": "nums = [3,4,5,1,2]",
+      "output": "1"
+    }
+  ],
   "hint": {
     "core": "二分比较 nums[mid] 和 nums[hi]，确定最小值在哪半边",
     "keyPoints": [

@@ -5,6 +5,12 @@
   "category": "图论/BFS",
   "difficulty": "Medium",
   "description": "每分钟腐烂橘子会让四方向相邻的新鲜橘子腐烂，返回所有橘子都腐烂所需的最少分钟数。无法全部腐烂返回 -1。",
+  "examples": [
+    {
+      "input": "grid = [[2,1,1],[1,1,0],[0,1,1]]",
+      "output": "4"
+    }
+  ],
   "hint": {
     "core": "多源 BFS：所有腐烂橘子同时入队，逐层扩散，最后检查是否还有新鲜橘子",
     "keyPoints": [

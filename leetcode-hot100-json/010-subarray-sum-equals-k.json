@@ -5,6 +5,12 @@
   "category": "子串/前缀和",
   "difficulty": "Medium",
   "description": "给定整数数组和整数 k，统计数组中和为 k 的连续子数组的个数。",
+  "examples": [
+    {
+      "input": "nums = [1,1,1], k = 2",
+      "output": "2"
+    }
+  ],
   "hint": {
     "core": "前缀和 + 哈希表，prefix[j] - prefix[i] == k 等价于查找 prefix[j] - k 出现次数",
     "keyPoints": [

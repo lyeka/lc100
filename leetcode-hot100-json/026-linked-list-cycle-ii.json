@@ -5,6 +5,13 @@
   "category": "链表",
   "difficulty": "Medium",
   "description": "找到链表中环的入口节点。如果无环返回 nil。",
+  "examples": [
+    {
+      "input": "head = [3,2,0,-4], pos = 1",
+      "output": "索引 1 的节点",
+      "explanation": "尾节点连接到索引 1 的节点"
+    }
+  ],
   "hint": {
     "core": "快慢指针找到相遇点后，头指针和相遇点同步走，再次相遇即环入口",
     "keyPoints": [

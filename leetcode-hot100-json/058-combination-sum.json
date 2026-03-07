@@ -5,6 +5,12 @@
   "category": "回溯",
   "difficulty": "Medium",
   "description": "给定无重复元素的候选数数组和目标数，找出所有使数字和为目标数的组合。同一个数字可以无限制重复使用。",
+  "examples": [
+    {
+      "input": "candidates = [2,3,6,7], target = 7",
+      "output": "[[2,2,3],[7]]"
+    }
+  ],
   "hint": {
     "core": "回溯求组合：元素可重复使用，用 start 索引去重，剩余 target 为 0 时收集",
     "keyPoints": [

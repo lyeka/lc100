@@ -5,6 +5,12 @@
   "category": "多维动态规划",
   "difficulty": "Medium",
   "description": "机器人在 m*n 网格左上角，每次只能向下或向右移动一步，求到达右下角共有多少条不同路径。",
+  "examples": [
+    {
+      "input": "m = 3, n = 7",
+      "output": "28"
+    }
+  ],
   "hint": {
     "core": "网格 DP，dp[i][j] = dp[i-1][j] + dp[i][j-1]，只能向右或向下",
     "keyPoints": [

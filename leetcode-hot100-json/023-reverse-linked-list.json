@@ -5,6 +5,12 @@
   "category": "链表",
   "difficulty": "Easy",
   "description": "反转单链表，返回反转后的链表头。",
+  "examples": [
+    {
+      "input": "head = [1,2,3,4,5]",
+      "output": "[5,4,3,2,1]"
+    }
+  ],
   "hint": {
     "core": "迭代法用 prev 指针逐个翻转 next 方向",
     "keyPoints": [

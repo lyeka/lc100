@@ -5,6 +5,12 @@
   "category": "数组",
   "difficulty": "Medium",
   "description": "将数组中的元素向右轮转 k 个位置。",
+  "examples": [
+    {
+      "input": "nums = [1,2,3,4,5,6,7], k = 3",
+      "output": "[5,6,7,1,2,3,4]"
+    }
+  ],
   "hint": {
     "core": "三次翻转——整体翻转，前 k 个翻转，后 n-k 个翻转",
     "keyPoints": [

@@ -5,6 +5,13 @@
   "category": "二叉树",
   "difficulty": "Hard",
   "description": "找出二叉树中任意节点到任意节点路径上的最大节点值之和。路径不需要经过根节点。",
+  "examples": [
+    {
+      "input": "root = [-10,9,20,null,null,15,7]",
+      "output": "42",
+      "explanation": "路径 15→20→7"
+    }
+  ],
   "hint": {
     "core": "后序递归：每个节点计算\"经过自己的最大路径和\"，同时向上返回\"单边最大贡献\"",
     "keyPoints": [

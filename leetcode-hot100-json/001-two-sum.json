@@ -5,6 +5,13 @@
   "category": "哈希表",
   "difficulty": "Easy",
   "description": "给定整数数组和目标值，找出数组中和为目标值的两个数的索引。每个输入恰好有一个解，同一元素不能重复使用。",
+  "examples": [
+    {
+      "input": "nums = [2,7,11,15], target = 9",
+      "output": "[0,1]",
+      "explanation": "nums[0] + nums[1] = 2 + 7 = 9"
+    }
+  ],
   "hint": {
     "core": "哈希表存已遍历值的索引，每次查找 target - nums[i] 是否存在",
     "keyPoints": [

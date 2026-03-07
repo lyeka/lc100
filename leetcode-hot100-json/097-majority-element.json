@@ -5,6 +5,12 @@
   "category": "技巧/投票",
   "difficulty": "Easy",
   "description": "给定大小为 n 的数组，找出其中出现次数超过 n/2 的元素（多数元素）。",
+  "examples": [
+    {
+      "input": "nums = [2,2,1,1,1,2,2]",
+      "output": "2"
+    }
+  ],
   "hint": {
     "core": "Boyer-Moore 投票法，候选人计数为 0 时换人，最终幸存者即多数元素",
     "keyPoints": [

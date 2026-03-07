@@ -5,6 +5,12 @@
   "category": "链表",
   "difficulty": "Easy",
   "description": "判断单链表是否为回文链表。要求 O(n) 时间、O(1) 空间。",
+  "examples": [
+    {
+      "input": "head = [1,2,2,1]",
+      "output": "true"
+    }
+  ],
   "hint": {
     "core": "快慢指针找中点 + 翻转后半段 + 逐一比较",
     "keyPoints": [

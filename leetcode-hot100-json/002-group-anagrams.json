@@ -5,6 +5,12 @@
   "category": "哈希表",
   "difficulty": "Medium",
   "description": "给定字符串数组，将所有字母异位词（字母相同但排列不同的字符串）组合在一起。",
+  "examples": [
+    {
+      "input": "strs = [\"eat\",\"tea\",\"tan\",\"ate\",\"nat\",\"bat\"]",
+      "output": "[[\"bat\"],[\"nat\",\"tan\"],[\"ate\",\"eat\",\"tea\"]]"
+    }
+  ],
   "hint": {
     "core": "对每个字符串排序后作为哈希表的 key，相同 key 的归为一组",
     "keyPoints": [

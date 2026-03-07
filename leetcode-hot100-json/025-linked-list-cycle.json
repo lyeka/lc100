@@ -5,6 +5,13 @@
   "category": "链表",
   "difficulty": "Easy",
   "description": "判断链表中是否存在环。",
+  "examples": [
+    {
+      "input": "head = [3,2,0,-4], pos = 1",
+      "output": "true",
+      "explanation": "尾节点连接到索引 1 的节点形成环"
+    }
+  ],
   "hint": {
     "core": "快慢指针，有环必相遇",
     "keyPoints": [

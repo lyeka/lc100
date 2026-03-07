@@ -5,6 +5,13 @@
   "category": "贪心",
   "difficulty": "Medium",
   "description": "数组每个元素代表在该位置可以跳跃的最大长度，求到达最后位置的最少跳跃次数。保证可以到达。",
+  "examples": [
+    {
+      "input": "nums = [2,3,1,1,4]",
+      "output": "2",
+      "explanation": "跳到索引 1，再跳到末尾"
+    }
+  ],
   "hint": {
     "core": "BFS 思想：每一跳的范围是一层，统计到达终点的最少层数",
     "keyPoints": [

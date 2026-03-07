@@ -5,6 +5,17 @@
   "category": "二叉树",
   "difficulty": "Medium",
   "description": "判断给定二叉树是否是有效的二叉搜索树（左子树所有值 < 根 < 右子树所有值）。",
+  "examples": [
+    {
+      "input": "root = [2,1,3]",
+      "output": "true"
+    },
+    {
+      "input": "root = [5,1,4,null,null,3,6]",
+      "output": "false",
+      "explanation": "根节点值 5，但右子树包含 3"
+    }
+  ],
   "hint": {
     "core": "中序遍历递增 或 递归传上下界：BST 的充要条件是每个节点都在合法区间内",
     "keyPoints": [

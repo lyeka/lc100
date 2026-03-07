@@ -5,6 +5,12 @@
   "category": "链表",
   "difficulty": "Hard",
   "description": "每 k 个节点一组进行翻转，不足 k 个的部分保持原样。",
+  "examples": [
+    {
+      "input": "head = [1,2,3,4,5], k = 2",
+      "output": "[2,1,4,3,5]"
+    }
+  ],
   "hint": {
     "core": "分组检测长度 + 组内翻转 + 组间拼接",
     "keyPoints": [

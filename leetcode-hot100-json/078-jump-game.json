@@ -5,6 +5,16 @@
   "category": "贪心",
   "difficulty": "Medium",
   "description": "数组每个元素代表在该位置可以跳跃的最大长度，判断是否能到达最后一个下标。",
+  "examples": [
+    {
+      "input": "nums = [2,3,1,1,4]",
+      "output": "true"
+    },
+    {
+      "input": "nums = [3,2,1,0,4]",
+      "output": "false"
+    }
+  ],
   "hint": {
     "core": "维护能到达的最远位置，遍历时如果当前位置超过最远位置则不可达",
     "keyPoints": [

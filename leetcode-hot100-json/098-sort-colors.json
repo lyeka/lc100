@@ -5,6 +5,12 @@
   "category": "技巧/双指针",
   "difficulty": "Medium",
   "description": "给定包含 0、1、2 的数组（代表红白蓝），原地排序使相同颜色相邻。不能使用排序库函数。",
+  "examples": [
+    {
+      "input": "nums = [2,0,2,1,1,0]",
+      "output": "[0,0,1,1,2,2]"
+    }
+  ],
   "hint": {
     "core": "荷兰国旗问题，三指针原地分区：lo 指向 0 的右边界，hi 指向 2 的左边界，mid 遍历",
     "keyPoints": [

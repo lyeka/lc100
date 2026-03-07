@@ -5,6 +5,17 @@
   "category": "滑动窗口",
   "difficulty": "Medium",
   "description": "给定字符串，找出不含重复字符的最长子串的长度。",
+  "examples": [
+    {
+      "input": "s = \"abcabcbb\"",
+      "output": "3",
+      "explanation": "最长子串是 \"abc\""
+    },
+    {
+      "input": "s = \"bbbbb\"",
+      "output": "1"
+    }
+  ],
   "hint": {
     "core": "滑动窗口 + 哈希表记录字符最新位置，遇重复直接跳到重复位置之后",
     "keyPoints": [

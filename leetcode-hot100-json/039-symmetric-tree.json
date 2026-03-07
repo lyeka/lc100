@@ -5,6 +5,12 @@
   "category": "二叉树",
   "difficulty": "Easy",
   "description": "判断一棵二叉树是否是镜像对称的。",
+  "examples": [
+    {
+      "input": "root = [1,2,2,3,4,4,3]",
+      "output": "true"
+    }
+  ],
   "hint": {
     "core": "递归比较镜像位置——左子的左 vs 右子的右，左子的右 vs 右子的左",
     "keyPoints": [

@@ -5,6 +5,12 @@
   "category": "二叉树/BFS",
   "difficulty": "Medium",
   "description": "返回二叉树的层序遍历结果（逐层从左到右）。",
+  "examples": [
+    {
+      "input": "root = [3,9,20,null,null,15,7]",
+      "output": "[[3],[9,20],[15,7]]"
+    }
+  ],
   "hint": {
     "core": "BFS 逐层遍历：队列 + 按层批量弹出",
     "keyPoints": [

@@ -5,6 +5,12 @@
   "category": "堆",
   "difficulty": "Medium",
   "description": "给定整数数组和整数 k，返回出现频率前 k 高的元素。",
+  "examples": [
+    {
+      "input": "nums = [1,1,1,2,2,3], k = 2",
+      "output": "[1,2]"
+    }
+  ],
   "hint": {
     "core": "哈希表统计频率，然后用小顶堆/桶排序取前 k 高频",
     "keyPoints": [

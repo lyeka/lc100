@@ -5,6 +5,17 @@
   "category": "动态规划/背包",
   "difficulty": "Medium",
   "description": "给定只含正整数的非空数组，判断是否可以将数组分割成两个子集，使两个子集的元素和相等。",
+  "examples": [
+    {
+      "input": "nums = [1,5,11,5]",
+      "output": "true",
+      "explanation": "可分为 [1,5,5] 和 [11]"
+    },
+    {
+      "input": "nums = [1,2,3,5]",
+      "output": "false"
+    }
+  ],
   "hint": {
     "core": "0-1 背包，判断能否从数组中选子集使和 = totalSum/2",
     "keyPoints": [

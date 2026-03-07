@@ -5,6 +5,12 @@
   "category": "栈/单调栈",
   "difficulty": "Medium",
   "description": "给定每日温度数组，返回每天需要等几天才能遇到更高温度。没有更高温度则为 0。",
+  "examples": [
+    {
+      "input": "temperatures = [73,74,75,71,69,72,76,73]",
+      "output": "[1,1,4,2,1,1,0,0]"
+    }
+  ],
   "hint": {
     "core": "单调递减栈存索引，遇到更大温度时弹栈计算等待天数",
     "keyPoints": [

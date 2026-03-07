@@ -5,6 +5,12 @@
   "category": "二叉树",
   "difficulty": "Medium",
   "description": "找到二叉搜索树中第 k 小的元素。",
+  "examples": [
+    {
+      "input": "root = [3,1,4,null,2], k = 1",
+      "output": "1"
+    }
+  ],
   "hint": {
     "core": "BST 中序遍历就是升序序列：遍历到第 k 个即答案",
     "keyPoints": [

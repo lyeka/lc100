@@ -5,6 +5,13 @@
   "category": "贪心",
   "difficulty": "Easy",
   "description": "给定股票每日价格数组，选择某一天买入、未来某一天卖出，计算能获得的最大利润。",
+  "examples": [
+    {
+      "input": "prices = [7,1,5,3,6,4]",
+      "output": "5",
+      "explanation": "第 2 天买入（价格 1），第 5 天卖出（价格 6）"
+    }
+  ],
   "hint": {
     "core": "遍历时维护历史最低价，每天计算当天卖出的利润取最大",
     "keyPoints": [

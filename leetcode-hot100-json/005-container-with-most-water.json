@@ -5,6 +5,12 @@
   "category": "双指针",
   "difficulty": "Medium",
   "description": "给定 n 条垂直线段，找出两条线段与 x 轴构成的容器能盛最多的水。",
+  "examples": [
+    {
+      "input": "height = [1,8,6,2,5,4,8,3,7]",
+      "output": "49"
+    }
+  ],
   "hint": {
     "core": "左右双指针从两端收缩，每次移动较矮的那一侧",
     "keyPoints": [

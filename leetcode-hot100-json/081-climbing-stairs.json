@@ -5,6 +5,13 @@
   "category": "动态规划",
   "difficulty": "Easy",
   "description": "每次可以爬 1 或 2 个台阶，求爬到第 n 阶有多少种不同的方法。",
+  "examples": [
+    {
+      "input": "n = 3",
+      "output": "3",
+      "explanation": "三种方法：1+1+1, 1+2, 2+1"
+    }
+  ],
   "hint": {
     "core": "斐波那契数列，到达第 n 阶 = 第 n-1 阶 + 第 n-2 阶",
     "keyPoints": [

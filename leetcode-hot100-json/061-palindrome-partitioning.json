@@ -5,6 +5,12 @@
   "category": "回溯",
   "difficulty": "Medium",
   "description": "给定字符串 s，将其分割成若干子串，使每个子串都是回文串。返回所有可能的分割方案。",
+  "examples": [
+    {
+      "input": "s = \"aab\"",
+      "output": "[[\"a\",\"a\",\"b\"],[\"aa\",\"b\"]]"
+    }
+  ],
   "hint": {
     "core": "回溯枚举所有分割位置，对每个子串判断是否回文",
     "keyPoints": [

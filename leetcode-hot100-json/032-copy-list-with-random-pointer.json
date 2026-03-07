@@ -5,6 +5,13 @@
   "category": "链表",
   "difficulty": "Medium",
   "description": "深拷贝一个带有 next 和 random 指针的链表。random 可以指向链表中任意节点或 nil。",
+  "examples": [
+    {
+      "input": "head = [[7,null],[13,0],[11,4],[10,2],[1,0]]",
+      "output": "[[7,null],[13,0],[11,4],[10,2],[1,0]]",
+      "explanation": "深拷贝整个链表，包括 random 指针"
+    }
+  ],
   "hint": {
     "core": "三步法——交织复制、设置 random、拆分链表",
     "keyPoints": [

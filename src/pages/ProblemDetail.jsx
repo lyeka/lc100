@@ -3,7 +3,7 @@
  * [OUTPUT]: ProblemDetail 古典书页阅读页
  * [POS]: 路由 /problem/:id，全站阅读体验核心
  *        书页容器 bg-card shadow-2xl 浮于深色桌面
- *        阅读节奏：装饰线章节标题 → 描述(useState 折叠) → 金线引用核心思路 → 中文数字步骤 → 文字 tab 多解法 → 纯文字导航
+ *        阅读节奏：装饰线章节标题 → 描述+示例(useState 折叠) → 金线引用核心思路 → 中文数字步骤 → 文字 tab 多解法 → 纯文字导航
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useState } from 'react'
@@ -118,7 +118,7 @@ export function ProblemDetail() {
         </div>
         <OrnamentalRule />
 
-        {/* ── 题目描述 — useState 折叠 ── */}
+        {/* ── 题目描述 + 示例 — 同一折叠单元 ── */}
         <div className="mt-8">
           <button
             onClick={() => setDescOpen(!descOpen)}
@@ -128,8 +128,29 @@ export function ProblemDetail() {
             题目描述
           </button>
           {descOpen && (
-            <div className="mt-4 whitespace-pre-line text-sm text-foreground/80 leading-loose px-4">
-              {problem.description}
+            <div className="mt-4 px-4 space-y-5">
+              <div className="whitespace-pre-line text-sm text-foreground/80 leading-loose">
+                {problem.description}
+              </div>
+              {problem.examples?.length > 0 && (
+                <div className="space-y-3">
+                  {problem.examples.map((ex, i) => (
+                    <div key={i} className="bg-muted/30 rounded px-4 py-3 space-y-1">
+                      <div className="font-mono text-xs text-foreground/85">
+                        <span className="text-muted-foreground">Input: </span>{ex.input}
+                      </div>
+                      <div className="font-mono text-xs text-foreground/85">
+                        <span className="text-muted-foreground">Output: </span>{ex.output}
+                      </div>
+                      {ex.explanation && (
+                        <div className="text-xs text-muted-foreground italic pt-1">
+                          {ex.explanation}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

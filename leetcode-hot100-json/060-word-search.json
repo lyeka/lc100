@@ -5,6 +5,16 @@
   "category": "回溯",
   "difficulty": "Medium",
   "description": "给定 m*n 字符网格和一个单词，判断单词是否存在于网格中。字母必须相邻（上下左右），同一单元格不能重复使用。",
+  "examples": [
+    {
+      "input": "board = [[\"A\",\"B\",\"C\",\"E\"],[\"S\",\"F\",\"C\",\"S\"],[\"A\",\"D\",\"E\",\"E\"]], word = \"ABCCED\"",
+      "output": "true"
+    },
+    {
+      "input": "board = [[\"A\",\"B\",\"C\",\"E\"],[\"S\",\"F\",\"C\",\"S\"],[\"A\",\"D\",\"E\",\"E\"]], word = \"ABCB\"",
+      "output": "false"
+    }
+  ],
   "hint": {
     "core": "DFS 回溯：从每个格子出发，沿四方向逐字符匹配，原地标记防重复",
     "keyPoints": [

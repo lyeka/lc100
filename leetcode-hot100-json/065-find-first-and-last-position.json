@@ -5,6 +5,16 @@
   "category": "二分查找",
   "difficulty": "Medium",
   "description": "给定升序数组和目标值，找出目标值在数组中的起始和结束位置。不存在返回 [-1,-1]。要求 O(log n)。",
+  "examples": [
+    {
+      "input": "nums = [5,7,7,8,8,10], target = 8",
+      "output": "[3,4]"
+    },
+    {
+      "input": "nums = [5,7,7,8,8,10], target = 6",
+      "output": "[-1,-1]"
+    }
+  ],
   "hint": {
     "core": "两次二分：一次找左边界（第一个 >= target），一次找右边界（最后一个 <= target）",
     "keyPoints": [

@@ -5,6 +5,13 @@
   "category": "二叉树/前缀和",
   "difficulty": "Medium",
   "description": "找出二叉树中路径和等于目标值的路径数量。路径方向必须向下，但不需要从根开始或在叶子结束。",
+  "examples": [
+    {
+      "input": "root = [10,5,-3,3,2,null,11,3,-2,null,1], targetSum = 8",
+      "output": "3",
+      "explanation": "路径: 5→3, 5→2→1, -3→11"
+    }
+  ],
   "hint": {
     "core": "前缀和 + DFS：路径和等于 targetSum 等价于两个前缀和之差等于 target",
     "keyPoints": [

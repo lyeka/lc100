@@ -5,6 +5,13 @@
   "category": "链表",
   "difficulty": "Medium",
   "description": "两个非空链表表示两个非负整数（逆序存储），将它们相加返回一个同样逆序的链表。",
+  "examples": [
+    {
+      "input": "l1 = [2,4,3], l2 = [5,6,4]",
+      "output": "[7,0,8]",
+      "explanation": "342 + 465 = 807"
+    }
+  ],
   "hint": {
     "core": "模拟竖式加法，逐位相加并处理进位",
     "keyPoints": [

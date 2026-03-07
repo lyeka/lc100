@@ -5,6 +5,17 @@
   "category": "图论/拓扑排序",
   "difficulty": "Medium",
   "description": "给定课程总数和先修关系，判断是否可能完成所有课程（即判断有向图是否有环）。",
+  "examples": [
+    {
+      "input": "numCourses = 2, prerequisites = [[1,0]]",
+      "output": "true"
+    },
+    {
+      "input": "numCourses = 2, prerequisites = [[1,0],[0,1]]",
+      "output": "false",
+      "explanation": "存在环，无法完成"
+    }
+  ],
   "hint": {
     "core": "拓扑排序检测有向图是否有环：入度为 0 的节点入队，逐步削减",
     "keyPoints": [

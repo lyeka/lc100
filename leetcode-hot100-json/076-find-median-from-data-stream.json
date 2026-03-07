@@ -5,6 +5,12 @@
   "category": "堆",
   "difficulty": "Hard",
   "description": "设计数据结构，支持从数据流中添加整数并随时查找当前所有已添加数字的中位数。",
+  "examples": [
+    {
+      "input": "[\"MedianFinder\",\"addNum\",\"addNum\",\"findMedian\",\"addNum\",\"findMedian\"]\n[[],[1],[2],[],[3],[]]",
+      "output": "[null,null,null,1.5,null,2.0]"
+    }
+  ],
   "hint": {
     "core": "大顶堆存较小一半，小顶堆存较大一半，堆顶即中位数候选",
     "keyPoints": [

@@ -5,6 +5,16 @@
   "category": "技巧",
   "difficulty": "Medium",
   "description": "找出数组在字典序中的下一个更大排列。如果已是最大排列，则重排为最小排列。必须原地修改。",
+  "examples": [
+    {
+      "input": "nums = [1,2,3]",
+      "output": "[1,3,2]"
+    },
+    {
+      "input": "nums = [3,2,1]",
+      "output": "[1,2,3]"
+    }
+  ],
   "hint": {
     "core": "从右往左找第一个下降点 i，再从右找第一个大于 nums[i] 的数交换，最后反转 i+1 之后",
     "keyPoints": [

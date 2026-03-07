@@ -5,6 +5,12 @@
   "category": "链表",
   "difficulty": "Medium",
   "description": "删除链表的倒数第 n 个结点，并返回链表头。要求一趟扫描完成。",
+  "examples": [
+    {
+      "input": "head = [1,2,3,4,5], n = 2",
+      "output": "[1,2,3,5]"
+    }
+  ],
   "hint": {
     "core": "快慢指针间隔 n 步，快指针到尾时慢指针在待删节点前",
     "keyPoints": [

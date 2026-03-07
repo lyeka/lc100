@@ -5,6 +5,12 @@
   "category": "二叉树/BFS",
   "difficulty": "Medium",
   "description": "从右侧看二叉树，返回每一层能看到的最后一个节点的值。",
+  "examples": [
+    {
+      "input": "root = [1,2,3,null,5,null,4]",
+      "output": "[1,3,4]"
+    }
+  ],
   "hint": {
     "core": "BFS 层序遍历取每层最后一个节点；或 DFS 先右后左按深度首次访问",
     "keyPoints": [

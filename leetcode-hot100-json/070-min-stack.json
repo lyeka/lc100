@@ -5,6 +5,12 @@
   "category": "栈",
   "difficulty": "Medium",
   "description": "设计一个支持 push、pop、top 和在 O(1) 时间内检索最小元素的栈。",
+  "examples": [
+    {
+      "input": "[\"MinStack\",\"push\",\"push\",\"push\",\"getMin\",\"pop\",\"top\",\"getMin\"]\n[[],[-2],[0],[-3],[],[],[],[]]",
+      "output": "[null,null,null,null,-3,null,0,-2]"
+    }
+  ],
   "hint": {
     "core": "用辅助栈同步记录当前最小值，每次 push/pop 时同步操作",
     "keyPoints": [

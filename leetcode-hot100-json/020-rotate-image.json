@@ -5,6 +5,12 @@
   "category": "矩阵",
   "difficulty": "Medium",
   "description": "将 n×n 矩阵顺时针旋转 90 度。必须原地旋转，不能使用额外矩阵。",
+  "examples": [
+    {
+      "input": "matrix = [[1,2,3],[4,5,6],[7,8,9]]",
+      "output": "[[7,4,1],[8,5,2],[9,6,3]]"
+    }
+  ],
   "hint": {
     "core": "先沿主对角线转置矩阵，再左右翻转每一行，即完成顺时针 90 度旋转",
     "keyPoints": [

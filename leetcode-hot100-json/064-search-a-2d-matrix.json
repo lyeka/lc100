@@ -5,6 +5,12 @@
   "category": "二分查找",
   "difficulty": "Medium",
   "description": "在每行升序且下一行首元素大于上一行末元素的 m×n 矩阵中，判断目标值是否存在。",
+  "examples": [
+    {
+      "input": "matrix = [[1,3,5,7],[10,11,16,20],[23,30,34,60]], target = 3",
+      "output": "true"
+    }
+  ],
   "hint": {
     "core": "将二维矩阵视为一维有序数组，一次二分搞定",
     "keyPoints": [

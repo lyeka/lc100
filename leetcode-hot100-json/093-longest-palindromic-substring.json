@@ -5,6 +5,13 @@
   "category": "多维动态规划/双指针",
   "difficulty": "Medium",
   "description": "给定字符串 s，找到 s 中最长的回文子串。",
+  "examples": [
+    {
+      "input": "s = \"babad\"",
+      "output": "\"bab\"",
+      "explanation": "\"aba\" 也是有效答案"
+    }
+  ],
   "hint": {
     "core": "中心扩展法，枚举每个字符（和每对相邻字符）作为回文中心向两侧扩展",
     "keyPoints": [

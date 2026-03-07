@@ -5,6 +5,12 @@
   "category": "双指针",
   "difficulty": "Medium",
   "description": "找出数组中所有和为 0 的三元组，结果不能包含重复的三元组。",
+  "examples": [
+    {
+      "input": "nums = [-1,0,1,2,-1,-4]",
+      "output": "[[-1,-1,2],[-1,0,1]]"
+    }
+  ],
   "hint": {
     "core": "排序 + 固定一个数，剩下两个用双指针在有序区间内找目标和",
     "keyPoints": [

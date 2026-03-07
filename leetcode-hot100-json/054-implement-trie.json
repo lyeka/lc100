@@ -5,6 +5,12 @@
   "category": "图论/字典树",
   "difficulty": "Medium",
   "description": "实现 Trie 数据结构，支持 insert、search 和 startsWith 操作。",
+  "examples": [
+    {
+      "input": "[\"Trie\",\"insert\",\"search\",\"search\",\"startsWith\",\"insert\",\"search\"]\n[[],[\"apple\"],[\"apple\"],[\"app\"],[\"app\"],[\"app\"],[\"app\"]]",
+      "output": "[null,null,true,false,true,null,true]"
+    }
+  ],
   "hint": {
     "core": "26 叉树：每个节点有 26 个子指针，isEnd 标记是否为完整单词结尾",
     "keyPoints": [

@@ -5,6 +5,13 @@
   "category": "动态规划/二分",
   "difficulty": "Medium",
   "description": "给定整数数组，找到其中最长严格递增子序列的长度。",
+  "examples": [
+    {
+      "input": "nums = [10,9,2,5,3,7,101,18]",
+      "output": "4",
+      "explanation": "LIS 为 [2,3,7,101]"
+    }
+  ],
   "hint": {
     "core": "经典 DP 为 O(n^2)；贪心+二分维护最小末尾数组达到 O(n log n)",
     "keyPoints": [

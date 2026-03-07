@@ -5,6 +5,12 @@
   "category": "二叉树",
   "difficulty": "Easy",
   "description": "将升序排列的有序数组转换为一棵高度平衡的二叉搜索树。",
+  "examples": [
+    {
+      "input": "nums = [-10,-3,0,5,9]",
+      "output": "[0,-3,9,-10,null,5]"
+    }
+  ],
   "hint": {
     "core": "递归取中点建根：有序数组天然对应平衡 BST",
     "keyPoints": [

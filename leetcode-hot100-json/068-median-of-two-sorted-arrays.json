@@ -5,6 +5,16 @@
   "category": "二分查找",
   "difficulty": "Hard",
   "description": "给定两个正序数组，找出这两个数组合并后的中位数。要求 O(log(m+n))。",
+  "examples": [
+    {
+      "input": "nums1 = [1,3], nums2 = [2]",
+      "output": "2.0"
+    },
+    {
+      "input": "nums1 = [1,2], nums2 = [3,4]",
+      "output": "2.5"
+    }
+  ],
   "hint": {
     "core": "在较短数组上二分，找到一个切割位置使左半部分最大值 <= 右半部分最小值",
     "keyPoints": [

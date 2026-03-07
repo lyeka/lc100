@@ -5,6 +5,16 @@
   "category": "栈",
   "difficulty": "Medium",
   "description": "给定编码字符串如 \"3[a2[c]]\"，返回解码后的字符串 \"accaccacc\"。",
+  "examples": [
+    {
+      "input": "s = \"3[a]2[bc]\"",
+      "output": "\"aaabcbc\""
+    },
+    {
+      "input": "s = \"3[a2[c]]\"",
+      "output": "\"accaccacc\""
+    }
+  ],
   "hint": {
     "core": "用两个栈分别存数字和字符串，遇到 ] 时弹出拼接",
     "keyPoints": [

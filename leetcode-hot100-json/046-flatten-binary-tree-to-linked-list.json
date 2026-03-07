@@ -5,6 +5,12 @@
   "category": "二叉树",
   "difficulty": "Medium",
   "description": "将二叉树原地展开为单链表（按先序遍历顺序，全部挂在右子树上）。",
+  "examples": [
+    {
+      "input": "root = [1,2,5,3,4,null,6]",
+      "output": "[1,null,2,null,3,null,4,null,5,null,6]"
+    }
+  ],
   "hint": {
     "core": "前序遍历顺序展平：每个节点的左子树最右节点连接右子树",
     "keyPoints": [

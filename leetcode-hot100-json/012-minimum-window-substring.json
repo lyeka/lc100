@@ -5,6 +5,12 @@
   "category": "子串/滑动窗口",
   "difficulty": "Hard",
   "description": "给定字符串 s 和 t，找出 s 中包含 t 所有字符的最短子串。",
+  "examples": [
+    {
+      "input": "s = \"ADOBECODEBANC\", t = \"ABC\"",
+      "output": "\"BANC\""
+    }
+  ],
   "hint": {
     "core": "滑动窗口，右扩左缩，用 need/have 计数判断是否满足条件",
     "keyPoints": [

@@ -5,6 +5,12 @@
   "category": "二叉树",
   "difficulty": "Medium",
   "description": "根据前序遍历和中序遍历的结果，构造出原始二叉树。",
+  "examples": [
+    {
+      "input": "preorder = [3,9,20,15,7], inorder = [9,3,15,20,7]",
+      "output": "[3,9,20,null,null,15,7]"
+    }
+  ],
   "hint": {
     "core": "前序首元素是根，在中序中定位根来划分左右子树",
     "keyPoints": [

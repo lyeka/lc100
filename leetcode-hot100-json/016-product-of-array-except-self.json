@@ -5,6 +5,12 @@
   "category": "数组",
   "difficulty": "Medium",
   "description": "给定整数数组，返回数组 answer，其中 answer[i] 等于 nums 中除 nums[i] 之外其余各元素的乘积。不能使用除法，要求 O(n)。",
+  "examples": [
+    {
+      "input": "nums = [1,2,3,4]",
+      "output": "[24,12,8,6]"
+    }
+  ],
   "hint": {
     "core": "左右两轮遍历，分别累积前缀积和后缀积，结果 = 前缀积 * 后缀积",
     "keyPoints": [

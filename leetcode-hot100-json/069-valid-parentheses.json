@@ -5,6 +5,16 @@
   "category": "栈",
   "difficulty": "Easy",
   "description": "判断只包含 ()[]{}  的字符串是否有效（括号必须正确配对和嵌套）。",
+  "examples": [
+    {
+      "input": "s = \"()[]{}\"",
+      "output": "true"
+    },
+    {
+      "input": "s = \"(]\"",
+      "output": "false"
+    }
+  ],
   "hint": {
     "core": "左括号入栈，遇右括号时栈顶必须是对应的左括号",
     "keyPoints": [

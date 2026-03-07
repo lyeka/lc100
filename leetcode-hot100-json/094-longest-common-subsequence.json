@@ -5,6 +5,13 @@
   "category": "多维动态规划",
   "difficulty": "Medium",
   "description": "给定两个字符串，返回它们的最长公共子序列的长度。不存在返回 0。",
+  "examples": [
+    {
+      "input": "text1 = \"abcde\", text2 = \"ace\"",
+      "output": "3",
+      "explanation": "LCS 为 \"ace\""
+    }
+  ],
   "hint": {
     "core": "二维 DP，字符相同则 dp[i][j] = dp[i-1][j-1]+1，否则取左/上最大值",
     "keyPoints": [

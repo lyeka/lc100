@@ -5,6 +5,13 @@
   "category": "链表",
   "difficulty": "Easy",
   "description": "找到两个单链表相交的起始节点。如果不相交返回 nil。",
+  "examples": [
+    {
+      "input": "listA = [4,1,8,4,5], listB = [5,6,1,8,4,5], skipA = 2, skipB = 3",
+      "output": "节点值为 8 的节点",
+      "explanation": "两链表在值为 8 的节点处相交"
+    }
+  ],
   "hint": {
     "core": "双指针走完自己的链再走对方的链，相遇即交点",
     "keyPoints": [

@@ -5,6 +5,12 @@
   "category": "滑动窗口",
   "difficulty": "Medium",
   "description": "给定字符串 s 和非空字符串 p，找出 s 中所有 p 的字母异位词的子串起始索引。",
+  "examples": [
+    {
+      "input": "s = \"cbaebabacd\", p = \"abc\"",
+      "output": "[0,6]"
+    }
+  ],
   "hint": {
     "core": "固定长度滑动窗口 + 字符频次数组比较，窗口滑动时增减字符计数",
     "keyPoints": [

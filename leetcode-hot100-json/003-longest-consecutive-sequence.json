@@ -5,6 +5,13 @@
   "category": "哈希表",
   "difficulty": "Medium",
   "description": "给定未排序的整数数组，找出数字连续的最长序列的长度。要求 O(n) 时间复杂度。",
+  "examples": [
+    {
+      "input": "nums = [100,4,200,1,3,2]",
+      "output": "4",
+      "explanation": "最长连续序列是 [1,2,3,4]"
+    }
+  ],
   "hint": {
     "core": "哈希集合去重，只从序列起点（num-1 不存在）开始向右扩展计数",
     "keyPoints": [

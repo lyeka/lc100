@@ -5,6 +5,12 @@
   "category": "技巧/位运算",
   "difficulty": "Easy",
   "description": "数组中每个元素都出现两次，只有一个元素出现一次。找出那个只出现一次的元素。要求线性时间、不使用额外空间。",
+  "examples": [
+    {
+      "input": "nums = [4,1,2,1,2]",
+      "output": "4"
+    }
+  ],
   "hint": {
     "core": "异或运算，a ^ a = 0, a ^ 0 = a，全部异或后剩下的就是单独的数",
     "keyPoints": [

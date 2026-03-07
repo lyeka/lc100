@@ -5,6 +5,12 @@
   "category": "二叉树",
   "difficulty": "Easy",
   "description": "返回二叉树的中序遍历结果（左→根→右）。",
+  "examples": [
+    {
+      "input": "root = [1,null,2,3]",
+      "output": "[1,3,2]"
+    }
+  ],
   "hint": {
     "core": "中序遍历 = 左-根-右，迭代法用栈模拟递归",
     "keyPoints": [

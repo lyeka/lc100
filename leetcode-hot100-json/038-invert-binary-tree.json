@@ -5,6 +5,12 @@
   "category": "二叉树",
   "difficulty": "Easy",
   "description": "翻转一棵二叉树（左右子树互换）。",
+  "examples": [
+    {
+      "input": "root = [4,2,7,1,3,6,9]",
+      "output": "[4,7,2,9,6,3,1]"
+    }
+  ],
   "hint": {
     "core": "递归交换每个节点的左右子树",
     "keyPoints": [
