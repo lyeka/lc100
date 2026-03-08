@@ -33,6 +33,7 @@ GoDetail.jsx:      路由 /go/:id，Go 面试题书页阅读（背景 → 要点
 DesignSystem.jsx:  路由 /design-system，组件展示
 
 ### lib/
-utils.js: cn() 类名合并
+utils.js:    cn() 类名合并
+progress.js: 学习进度 store（useSyncExternalStore + localStorage），导出 useProgress / useProgressStats
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

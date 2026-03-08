@@ -1,5 +1,5 @@
 /**
- * [INPUT]: react-router (useSearchParams, Link), react (useState), @/data/goInterviews
+ * [INPUT]: react-router (useSearchParams, Link), react (useState), @/data/goInterviews, @/lib/progress (useProgress)
  * [OUTPUT]: GoHome — Go 面试题古典目录页
  * [POS]: 路由 /go，按 6 大分类分组的 Table of Contents，纯文字筛选
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router'
 import { goInterviews, goInterviewCategories } from '@/data/goInterviews'
+import { useProgress } from '@/lib/progress'
 
 /* ── 罗马数字 ── */
 const ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X']
@@ -24,12 +25,15 @@ export function GoHome() {
   const [params, setParams] = useSearchParams()
   const activeCategory = params.get('category') || ''
   const activeLevel    = params.get('level') || ''
+  const showUnlearned  = params.get('unlearned') === '1'
   const [catOpen, setCatOpen] = useState(false)
+  const { isLearned } = useProgress('go', goInterviews.length)
 
   /* ── 筛选 ── */
   const filtered = goInterviews.filter(q => {
     if (activeCategory && q.category !== activeCategory) return false
     if (activeLevel && q.level !== activeLevel) return false
+    if (showUnlearned && isLearned(q.id)) return false
     return true
   })
 
@@ -92,6 +96,15 @@ export function GoHome() {
               </span>
             </span>
           ))}
+          <span className="text-border mx-1">·</span>
+          <span
+            className={`cursor-pointer transition-colors ${
+              showUnlearned ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => toggle('unlearned', '1')}
+          >
+            未学
+          </span>
         </div>
 
         {/* 分类筛选 */}
@@ -170,6 +183,11 @@ export function GoHome() {
                   to={`/go/${q.id}`}
                   className="group flex items-baseline gap-3 py-2 px-2 -mx-2 transition-colors hover:bg-card/50"
                 >
+                  {/* 已学标记 */}
+                  <span className="flex-none w-3 text-center text-[8px] leading-none">
+                    {isLearned(q.id) && <span className="text-primary/50">●</span>}
+                  </span>
+
                   {/* ID */}
                   <span className="flex-none w-14 text-right text-xs font-mono text-primary/70">
                     {q.id}

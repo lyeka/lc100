@@ -1,5 +1,5 @@
 /**
- * [INPUT]: react-router (useParams, Link), @/data/goInterviews, @/components/ui/button, @/components/CodeBlock
+ * [INPUT]: react-router (useParams, Link), @/data/goInterviews, @/components/ui/button, @/components/CodeBlock, @/components/LearnedStamp
  * [OUTPUT]: GoDetail 古典书页阅读页
  * [POS]: 路由 /go/:id，Go 面试题阅读体验核心
  *        书页容器 bg-card shadow-2xl 浮于深色桌面
@@ -8,6 +8,7 @@
  */
 import { useParams, Link } from 'react-router'
 import { goInterviews, goInterviewMap } from '@/data/goInterviews'
+import { LearnedStamp } from '@/components/LearnedStamp'
 import { Button } from '@/components/ui/button'
 import { CodeBlock } from '@/components/CodeBlock'
 
@@ -114,8 +115,7 @@ export function GoDetail() {
           </div>
         </div>
         <OrnamentalRule />
-
-        {/* ── 背景说明（可选）— 金色左边框引用体 ── */}
+        <LearnedStamp section="go" id={id} total={goInterviews.length} />
         {question.background && (
           <>
             <div className="mt-8">

@@ -1,5 +1,5 @@
 /**
- * [INPUT]: react-router (useParams, Link), @/data/interviews, @/components/ui/button
+ * [INPUT]: react-router (useParams, Link), @/data/interviews, @/components/ui/button, @/components/LearnedStamp
  * [OUTPUT]: AgentDetail 古典书页阅读页
  * [POS]: 路由 /agent/:id，Agent 面试题阅读体验核心
  *        书页容器 bg-card shadow-2xl 浮于深色桌面
@@ -8,6 +8,7 @@
  */
 import { useParams, Link } from 'react-router'
 import { interviews, interviewMap } from '@/data/interviews'
+import { LearnedStamp } from '@/components/LearnedStamp'
 import { Button } from '@/components/ui/button'
 
 /* ── 中文数字 ── */
@@ -113,8 +114,7 @@ export function AgentDetail() {
           </div>
         </div>
         <OrnamentalRule />
-
-        {/* ── 背景说明（可选）— 金色左边框引用体 ── */}
+        <LearnedStamp section="agent" id={id} total={interviews.length} />
         {question.background && (
           <>
             <div className="mt-8">

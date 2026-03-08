@@ -1,5 +1,5 @@
 /**
- * [INPUT]: react (useState), react-router (useParams, Link), @/data/problems, @/components/CodeBlock
+ * [INPUT]: react (useState), react-router (useParams, Link), @/data/problems, @/components/CodeBlock, @/components/LearnedStamp
  * [OUTPUT]: ProblemDetail 古典书页阅读页
  * [POS]: 路由 /problem/:id，全站阅读体验核心
  *        书页容器 bg-card shadow-2xl 浮于深色桌面
@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router'
 import { problemMap } from '@/data/problems'
 import { CodeBlock } from '@/components/CodeBlock'
+import { LearnedStamp } from '@/components/LearnedStamp'
 import { Button } from '@/components/ui/button'
 
 /* ── 中文数字 ── */
@@ -117,8 +118,7 @@ export function ProblemDetail() {
           </div>
         </div>
         <OrnamentalRule />
-
-        {/* ── 题目描述 + 示例 — 同一折叠单元 ── */}
+        <LearnedStamp section="leetcode" id={numId} total={totalProblems} />
         <div className="mt-8">
           <button
             onClick={() => setDescOpen(!descOpen)}

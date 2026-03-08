@@ -1,5 +1,5 @@
 /**
- * [INPUT]: react-router (useSearchParams, Link), react (useState), @/data/problems
+ * [INPUT]: react-router (useSearchParams, Link), react (useState), @/data/problems, @/lib/progress (useProgress)
  * [OUTPUT]: Home 首页 — 古典书籍目录页
  * [POS]: 路由 /，全站入口，按分类分组的 Table of Contents，纯文字筛选
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router'
 import { problems, categories } from '@/data/problems'
+import { useProgress } from '@/lib/progress'
 
 /* ── 罗马数字 ── */
 const ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV']
@@ -24,12 +25,15 @@ export function Home() {
   const [params, setParams] = useSearchParams()
   const activeCategory   = params.get('category') || ''
   const activeDifficulty = params.get('difficulty') || ''
+  const showUnlearned    = params.get('unlearned') === '1'
   const [catOpen, setCatOpen] = useState(false)
+  const { isLearned } = useProgress('leetcode', problems.length)
 
   /* ── 筛选 ── */
   const filtered = problems.filter(p => {
     if (activeCategory && p.category !== activeCategory) return false
     if (activeDifficulty && p.difficulty !== activeDifficulty) return false
+    if (showUnlearned && isLearned(p.id)) return false
     return true
   })
 
@@ -92,6 +96,15 @@ export function Home() {
               </span>
             </span>
           ))}
+          <span className="text-border mx-1">·</span>
+          <span
+            className={`cursor-pointer transition-colors ${
+              showUnlearned ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => toggle('unlearned', '1')}
+          >
+            未学
+          </span>
         </div>
 
         {/* 分类筛选：折叠触发器 */}
@@ -172,6 +185,11 @@ export function Home() {
                   to={`/problem/${p.id}`}
                   className="group flex items-baseline gap-3 py-2 px-2 -mx-2 transition-colors hover:bg-card/50"
                 >
+                  {/* 已学标记 */}
+                  <span className="flex-none w-3 text-center text-[8px] leading-none">
+                    {isLearned(p.id) && <span className="text-primary/50">●</span>}
+                  </span>
+
                   {/* 序号 */}
                   <span className="flex-none w-8 text-right text-xs font-mono text-primary/70">
                     {String(p.id).padStart(3, '0')}
