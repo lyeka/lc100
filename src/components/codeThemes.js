@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 无外部依赖，纯数据模块
- * [OUTPUT]: 4 套 Prism 主题对象 (navy, parchment, ivory, papyrus) + THEME_MAP + useCodeTheme hook
+ * [OUTPUT]: 5 套 Prism 主题对象 (navy, parchment, ivory, papyrus, vintageGreen) + THEME_MAP + useCodeTheme hook
  * [POS]: CodeBlock 的语法高亮色彩配置，每套主题匹配对应的书页风格
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -74,12 +74,30 @@ const papyrus = {
   ],
 }
 
+/* ══════════════════════════════════════════════════════════
+   复古绿 — 深墨绿书封，铜金装饰，磷屏余晖
+   ══════════════════════════════════════════════════════════ */
+const vintageGreen = {
+  plain: { color: '#d6ebd6', backgroundColor: 'transparent' },
+  styles: [
+    { types: ['comment', 'prolog', 'doctype', 'cdata'],  style: { color: '#637766', fontStyle: 'italic' } },
+    { types: ['punctuation'],                              style: { color: '#7fdb8a' } },
+    { types: ['property', 'tag', 'boolean', 'number', 'constant', 'symbol'], style: { color: '#f7a86c' } },
+    { types: ['selector', 'attr-name', 'string', 'char', 'builtin'], style: { color: '#addb67' } },
+    { types: ['operator', 'entity', 'url'],                style: { color: '#7fdb8a' } },
+    { types: ['atrule', 'attr-value', 'keyword'],          style: { color: '#c79a5a' } },
+    { types: ['function', 'class-name'],                   style: { color: '#82aaaa' } },
+    { types: ['regex', 'important', 'variable'],           style: { color: '#d6ebd6' } },
+  ],
+}
+
 /* ── 主题映射：app theme class → Prism theme ── */
 const THEME_MAP = {
   '':                navy,
   'theme-parchment': parchment,
   'theme-ivory':     ivory,
-  'theme-papyrus':   papyrus,
+  'theme-papyrus':        papyrus,
+  'theme-vintage-green':  vintageGreen,
 }
 
 /* ── 读取当前 app 主题 ── */
@@ -87,7 +105,8 @@ function getCurrentTheme() {
   const cl = document.documentElement.classList
   if (cl.contains('theme-parchment')) return 'theme-parchment'
   if (cl.contains('theme-ivory'))     return 'theme-ivory'
-  if (cl.contains('theme-papyrus'))   return 'theme-papyrus'
+  if (cl.contains('theme-papyrus'))        return 'theme-papyrus'
+  if (cl.contains('theme-vintage-green'))  return 'theme-vintage-green'
   return ''
 }
 

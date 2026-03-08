@@ -289,6 +289,57 @@
     --shadow-2xl: 0px 30px 60px -12px hsl(30 25% 25% / 0.22);
 }
 
+/* ══════════════════════════════════════════════════════════
+   复古绿 — 深墨绿书封 + 铜金装饰 + 磷屏青白
+   维多利亚时代的绿皮书 × 老式终端
+   ══════════════════════════════════════════════════════════ */
+.theme-vintage-green {
+    --background: #1a2e1a;
+    --foreground: #e0ebe0;
+    --card: #243a24;
+    --card-foreground: #e0ebe0;
+    --popover: #243a24;
+    --popover-foreground: #e0ebe0;
+    --primary: #b8965a;
+    --primary-foreground: #1a2e1a;
+    --secondary: #2c4a2c;
+    --secondary-foreground: #e0ebe0;
+    --muted: #2c4a2c;
+    --muted-foreground: #8db58d;
+    --accent: #2c4a2c;
+    --accent-foreground: #e0ebe0;
+    --destructive: #a85c5c;
+    --destructive-foreground: #e0ebe0;
+    --border: #3a5a3a;
+    --input: #3a5a3a;
+    --ring: #b8965a;
+    --chart-1: #b8965a;
+    --chart-2: #9a7d4a;
+    --chart-3: #7a9e7a;
+    --chart-4: #c49a6c;
+    --chart-5: #8db58d;
+    --sidebar: #1e351e;
+    --sidebar-foreground: #e0ebe0;
+    --sidebar-primary: #b8965a;
+    --sidebar-primary-foreground: #1a2e1a;
+    --sidebar-accent: #2c4a2c;
+    --sidebar-accent-foreground: #e0ebe0;
+    --sidebar-border: #3a5a3a;
+    --sidebar-ring: #b8965a;
+    --gallery-overlay: rgba(10, 22, 10, 0.88);
+    --gallery-overlay-fg: #e0ebe0;
+    --shadow-color: hsl(140 30% 5%);
+    --shadow-opacity: 0.4;
+    --shadow-2xs: 0px 1px 2px 0px hsl(140 30% 5% / 0.15);
+    --shadow-xs: 0px 1px 3px 0px hsl(140 30% 5% / 0.20);
+    --shadow-sm: 0px 2px 4px -1px hsl(140 30% 5% / 0.20), 0px 1px 2px -1px hsl(140 30% 5% / 0.15);
+    --shadow: 0px 4px 8px -2px hsl(140 30% 5% / 0.25), 0px 2px 4px -2px hsl(140 30% 5% / 0.15);
+    --shadow-md: 0px 6px 12px -3px hsl(140 30% 5% / 0.25), 0px 3px 6px -2px hsl(140 30% 5% / 0.15);
+    --shadow-lg: 0px 10px 20px -5px hsl(140 30% 5% / 0.30), 0px 4px 8px -3px hsl(140 30% 5% / 0.15);
+    --shadow-xl: 0px 20px 40px -8px hsl(140 30% 5% / 0.35), 0px 8px 16px -4px hsl(140 30% 5% / 0.15);
+    --shadow-2xl: 0px 30px 60px -12px hsl(140 30% 5% / 0.40);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -309,4 +360,7 @@
 }
 .theme-papyrus body {
   background-image: radial-gradient(circle at 20% 20%, #e5d5b8 0%, var(--background) 60%);
+}
+.theme-vintage-green body {
+  background-image: radial-gradient(circle at 20% 20%, #2a4f2a 0%, var(--background) 60%);
 }

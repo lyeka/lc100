@@ -61,10 +61,11 @@ Easy: chart-3 (青绿) · Medium: chart-4 (琥珀) · Hard: destructive (红)
 Button / Card / Input / Badge 已升级为微拟物风格，详见 `src/components/ui/CLAUDE.md`
 
 ## 主题系统
-4 种书页风格，CSS 变量驱动，class 加在 `<html>` 上，localStorage 持久化：
+5 种书页风格，CSS 变量驱动，class 加在 `<html>` 上，localStorage 持久化：
 | 主题 | class | 色调 |
 |------|-------|------|
 | 海军蓝（默认） | _(无)_ | 深蓝 + 金 |
 | 陈年羊皮纸 | `theme-parchment` | 泛黄暖纸 + 深褐 + 旧金 |
 | 象牙冷白 | `theme-ivory` | 近白微暖 + 近黑 + 金 |
 | 莎草纸 | `theme-papyrus` | 浓郁黄褐 + 深棕 + 古铜金 |
+| 复古绿 | `theme-vintage-green` | 深墨绿 + 青白 + 铜金 |
