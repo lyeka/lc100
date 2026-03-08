@@ -4,7 +4,7 @@
 > **设计铁律：颜色只用设计系统 Token，禁止硬编码。**
 
 ## 成员清单
-Header.jsx:        页眉，sticky，纯文字导航（首页·题库·Agent·Go）+ Tooltip 进度 + ThemeSelector 色点
+Header.jsx:        页眉，sticky，纯文字导航（首页·题库·Agent·Go·MySQL·Redis）+ Tooltip 进度 + ThemeSelector 色点
 Footer.jsx:        版记，居中布局：✦ 装饰线 + 导航链接（·分隔）+ 内容统计
 LearnedStamp.jsx:  印章式学习标记按钮，framer-motion 动画，被 Detail 页面操作栏消费
 OpenInChatGPT.jsx: 一键在 ChatGPT 中打开问题的外链按钮，接收 prompt 字符串，被 Detail 页面操作栏消费

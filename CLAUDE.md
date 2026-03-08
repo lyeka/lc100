@@ -33,7 +33,7 @@ index.html        - HTML 入口，挂载点 #root + 防闪烁主题预设脚本
 ## 路由结构
 | 路径 | 页面 | 说明 |
 |------|------|------|
-| / | Landing | 总目录：四卷导航 + 总数统计 |
+| / | Landing | 总目录：五卷导航 + 总数统计 |
 | /leetcode | Home | 分类/难度筛选 + 100 题古典目录 |
 | /problem/:id | ProblemDetail | 描述(折叠) → 核心思路(突出) → 关键步骤(渐进) → Go 代码高亮 |
 | /agent | AgentHome | 8 大分类 · 等级筛选 · 74 题古典目录 |
@@ -42,6 +42,8 @@ index.html        - HTML 入口，挂载点 #root + 防闪烁主题预设脚本
 | /go/:id | GoDetail | 背景说明 → 参考要点 → 代码示例(可选) → 追问 |
 | /mysql | MysqlHome | 6 大分类 · 等级筛选 · 52 题古典目录 |
 | /mysql/:id | MysqlDetail | 背景说明 → 参考要点 → SQL 代码示例(可选) → 追问 |
+| /redis | RedisHome | 8 大分类 · 等级筛选 · 58 题古典目录 |
+| /redis/:id | RedisDetail | 背景说明 → 参考要点 → 代码示例(可选) → 追问 |
 | /design-system | DesignSystem | 设计系统组件展示 |
 
 ## 数据 Schema

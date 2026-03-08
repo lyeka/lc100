@@ -9,7 +9,7 @@ import { useSyncExternalStore, useCallback } from 'react'
 
 /* ── 常量 ── */
 const STORAGE_KEY = 'lc100-progress'
-const EMPTY = { leetcode: [], agent: [], go: [], mysql: [] }
+const EMPTY = { leetcode: [], agent: [], go: [], mysql: [], redis: [] }
 
 /* ── 内部状态 ── */
 let listeners = new Set()
@@ -24,6 +24,7 @@ function buildCache(raw) {
       agent:    new Set(raw.agent || []),
       go:       new Set(raw.go || []),
       mysql:    new Set(raw.mysql || []),
+      redis:    new Set(raw.redis || []),
     },
   }
 }
@@ -99,5 +100,5 @@ export function useProgressStats(totals) {
     const total = totals[section] || 0
     return { count, total, percent: total ? Math.round(count / total * 100) : 0 }
   }
-  return { leetcode: stat('leetcode'), agent: stat('agent'), go: stat('go'), mysql: stat('mysql') }
+  return { leetcode: stat('leetcode'), agent: stat('agent'), go: stat('go'), mysql: stat('mysql'), redis: stat('redis') }
 }
