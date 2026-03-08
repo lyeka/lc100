@@ -8,7 +8,7 @@
 import { ExternalLink } from 'lucide-react'
 
 /* ── URL 长度预算 ── */
-const BASE_URL = 'https://chatgpt.com/?q='
+const BASE_URL = 'https://chatgpt.com/?prompt='
 const MAX_URL_LEN = 8000
 const PROMPT_BUDGET = MAX_URL_LEN - BASE_URL.length
 
