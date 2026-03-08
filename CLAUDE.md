@@ -16,6 +16,7 @@ src/              - 应用源码
   lib/            - 工具函数 (utils.js: cn())
 leetcode-hot100-json/ - 100 个题解 JSON 数据源
 agent-interview-json/ - 74 道 AI Agent 面试题 JSON（8 个分类文件）
+go-interview-json/    - 40 道 Go 面试题 JSON（6 个分类文件）
 public/           - 静态资源
 </directory>
 
@@ -34,6 +35,8 @@ index.html        - HTML 入口，挂载点 #root + 防闪烁主题预设脚本
 | /problem/:id | ProblemDetail | 描述(折叠) → 核心思路(突出) → 关键步骤(渐进) → Go 代码高亮 |
 | /agent | AgentHome | 8 大分类 · 等级筛选 · 74 题古典目录 |
 | /agent/:id | AgentDetail | 背景说明 → 参考要点(全展开) → 追问 |
+| /go | GoHome | 6 大分类 · 等级筛选 · 40 题古典目录 |
+| /go/:id | GoDetail | 背景说明 → 参考要点 → 代码示例(可选) → 追问 |
 | /design-system | DesignSystem | 设计系统组件展示 |
 
 ## 数据 Schema
@@ -43,6 +46,9 @@ index.html        - HTML 入口，挂载点 #root + 防闪烁主题预设脚本
 
 ### Agent 面试题
 每个 JSON: `{ id, title, category, categoryId, level, background?, answerPoints[], followUp[] }`
+
+### Go 面试题
+每个 JSON: `{ id, title, category, categoryId, level, background?, answerPoints[], codeExample?: { code, language, explanation }, followUp[] }`
 
 ## 等级颜色 Token
 L2: chart-3 (青绿) · L2/L3: chart-4 (琥珀) · L3: destructive (红)

@@ -4,8 +4,8 @@
 > **设计铁律：颜色只用设计系统 Token，禁止硬编码。**
 
 ## 成员清单
-Header.jsx:      顶部导航栏，sticky，品牌 logo + 「题库」「Agent」「设计系统」导航（startsWith 激活匹配）+ ThemeSelector 主题切换
-Footer.jsx:      页脚，品牌 + 导航链接（题库/Agent/设计系统）+ GitHub 图标
+Header.jsx:      顶部导航栏，sticky，品牌 logo + 「题库」「Agent」「Go」「设计系统」导航（startsWith 激活匹配）+ ThemeSelector 主题切换
+Footer.jsx:      页脚，品牌 + 导航链接（题库/Agent/Go/设计系统）+ GitHub 图标
 ProblemCard.jsx: 书籍封面风格题目卡片，3D 透视倾斜 + 书脊折痕 + 内框线，hover 展平放大
 CodeBlock.jsx:   Go 代码高亮，铅字图版风格：border + bg-secondary，语法色跟随书页主题联动（via useCodeTheme）
 ThemeSelector.jsx: 下拉式主题选择器（Navy/Parchment/Ivory/Papyrus），DropdownMenu + localStorage 持久化
