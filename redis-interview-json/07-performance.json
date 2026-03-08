@@ -1,0 +1,132 @@
+[
+  {
+    "id": "R7-01",
+    "title": "Redis 单线程为什么这么快——IO 多路复用与事件循环模型",
+    "category": "性能优化与线程模型",
+    "categoryId": 7,
+    "level": "L2",
+    "background": "最经典的 Redis 面试开场题，几乎所有 Redis 面试都会以此作为第一个问题来考察候选人对 Redis 底层架构的理解深度。",
+    "answerPoints": [
+      "所谓「单线程」指的是 Redis 的命令执行线程是单线程的，所有数据读写操作在同一个线程中串行完成。但从 Redis 6.0 开始，网络 IO 的读取和写入可以由多个 IO 线程并行处理，只是命令执行仍然保持单线程。",
+      "Redis 的数据全部存储在内存中，内存读写延迟在 100ns 级别，相比网络 IO 的毫秒级延迟快了数万倍。因此 Redis 的性能瓶颈不在数据操作本身，而在网络 IO 和协议解析上，单线程处理内存操作绰绰有余。",
+      "IO 多路复用（epoll/kqueue/select）是 Redis 高并发的核心武器：一个线程通过内核提供的多路复用 API 同时监听数万个 socket 的可读/可写事件，有事件就绪时才处理，避免了一个连接一个线程的资源浪费。",
+      "单线程模型彻底避免了多线程带来的上下文切换开销（每次线程切换约几微秒）和锁竞争问题。不需要对数据结构加锁意味着代码更简单、bug 更少、延迟更稳定。",
+      "Redis 的事件循环（Event Loop）统一处理两类事件：文件事件（socket 的读写请求）和时间事件（定时任务如过期 key 检查、集群心跳检测）。两类事件在同一个循环中交替顺序执行，简洁而高效。",
+      "单线程模型的核心局限在于：任何一个耗时命令（如 KEYS *、HGETALL 大 Hash、大 key 的 DEL）都会阻塞整个 Redis 实例的所有请求。因此生产环境必须严格避免 O(N) 的全量操作。"
+    ],
+    "followUp": [
+      "Redis 用的是 epoll 的 ET 模式还是 LT 模式？（答：LT 模式，更安全不易丢事件）",
+      "单线程模型下如何利用多核 CPU？（答：单机部署多个 Redis 实例，每个实例绑定不同的 CPU 核心）"
+    ]
+  },
+  {
+    "id": "R7-02",
+    "title": "Redis 6.0 的多线程 IO——多线程到底在干什么",
+    "category": "性能优化与线程模型",
+    "categoryId": 7,
+    "level": "L2/L3",
+    "background": "Redis 6.0 引入的多线程特性是高频追问题，面试官希望候选人能准确区分「哪些部分是多线程的、哪些部分仍然是单线程的」，以及这种设计选择背后的工程权衡。",
+    "answerPoints": [
+      "Redis 6.0 引入 io-threads 配置项（默认关闭），多线程只负责网络 IO 层面的工作：socket 数据的读取（read 系统调用）和写入（write 系统调用），以及 RESP 协议的解析和响应的序列化。命令的实际执行仍然在主线程中串行完成。",
+      "完整的工作流程为：主线程通过 epoll 接收新连接 → 将有数据待读取的 client 按轮询方式分配给各 IO 线程 → IO 线程并行读取 socket 数据并解析命令 → 主线程等待所有 IO 线程读取完成后串行执行命令 → 将有数据待写入的 client 分配给 IO 线程 → IO 线程并行将响应数据写回 socket。",
+      "配置建议：io-threads 设为 CPU 核数的一半且不超过 8（设太多线程间调度开销反而增大）。还需配置 io-threads-do-reads yes 开启读取方向的多线程（默认只对写方向生效）。",
+      "性能提升效果因场景而异：在高并发（数万 QPS）且网络包较大的场景下，吞吐量可提升 1-2 倍；但在低并发或小包场景下提升不明显，因为瓶颈不在网络 IO 而在命令执行本身。"
+    ],
+    "followUp": [
+      "为什么不把命令执行也做成多线程？（答：Redis 的核心优势是简单 + 无锁，多线程执行需要对每个数据结构加细粒度锁，代码复杂度暴增但收益有限，得不偿失）",
+      "io-threads 设太多会怎样？（答：线程间的同步等待和 CPU 缓存竞争开销增大，反而降低性能）"
+    ]
+  },
+  {
+    "id": "R7-03",
+    "title": "Pipeline 与 MGET 的区别——批量操作的正确选择",
+    "category": "性能优化与线程模型",
+    "categoryId": 7,
+    "level": "L2",
+    "background": "批量操作是 Redis 性能优化的基本功，面试官常通过此题考察候选人是否真正理解 Pipeline 的本质是节省网络 RTT，以及在 Cluster 模式下的差异化表现。",
+    "answerPoints": [
+      "Pipeline 是客户端技术：将多个命令打包后一次性发送到服务端，不等待单个命令的响应，服务端按顺序执行所有命令后将结果一次性返回。Pipeline 节省的核心是网络 RTT（Round Trip Time），而非 Redis 命令的执行时间。",
+      "MGET/MSET 是 Redis 原生的批量命令，一条命令操作多个 key，属于原子操作。但在 Cluster 模式下，如果多个 key 分布在不同的 slot 上会报 CROSSSLOT 错误（除非客户端 SDK 自动按 slot 拆分请求）。",
+      "Pipeline 比 MGET 更灵活：Pipeline 可以打包任意类型的命令组合（GET、SET、HGET 混用），而 MGET 只能批量 GET。Pipeline 在 Cluster 模式下，智能客户端（如 go-redis、jedis）会自动按 slot 分组、分别发送到各节点并行执行、最后合并结果。",
+      "关键区别：Pipeline 不是原子操作，多个命令之间可能被其他客户端的命令插入执行；MGET 是原子操作，不会被打断。因此有原子性要求时应优先选择原生批量命令或 Lua 脚本。",
+      "生产建议：每个 Pipeline 批次不要超过 1000 个命令，过大的 Pipeline 会占用过多的输入/输出缓冲区内存，且一个超大 Pipeline 的执行也会阻塞其他客户端的请求较长时间。"
+    ],
+    "followUp": [
+      "Pipeline 和事务（MULTI/EXEC）有什么区别？（答：MULTI/EXEC 保证原子性和隔离性，Pipeline 只是打包发送不保证原子性）",
+      "什么场景下 Pipeline 反而不如逐条发送？（答：命令之间有依赖关系，需要前一个结果决定下一个命令时，Pipeline 无法满足）"
+    ]
+  },
+  {
+    "id": "R7-04",
+    "title": "BigKey 的发现与治理——一个 500MB 的 Hash 如何安全删除",
+    "category": "性能优化与线程模型",
+    "categoryId": 7,
+    "level": "L2/L3",
+    "background": "BigKey 是线上 Redis 事故的头号杀手，几乎所有 Redis 线上故障都能追溯到某个不合理的大 key。面试官通过此题考察候选人的生产经验和问题处理能力。",
+    "answerPoints": [
+      "BigKey 的定义没有绝对标准，一般约定：String 类型 > 10KB，Hash/List/Set/ZSet 元素数量 > 5000 个或总体积 > 10MB。具体阈值应根据业务场景和 Redis 实例的配置而定。",
+      "BigKey 的四大危害：①操作耗时长（如 HGETALL 一个百万元素的 Hash 需要数百毫秒），阻塞 Redis 主线程影响所有请求；②key 过期时 DEL 是同步的，一个 100MB 的 key 过期删除可阻塞主线程数百毫秒甚至数秒；③Cluster 模式下迁移 slot 时 BigKey 导致迁移卡住超时；④造成内存分布不均匀（数据倾斜），某个节点内存远高于其他节点。",
+      "发现 BigKey 的方法：redis-cli --bigkeys 在线扫描每种数据类型中最大的 key（基于 SCAN 不阻塞）；redis-rdb-tools 离线分析 RDB 文件，生成所有 key 的内存占用报告，适合全量排查；MEMORY USAGE key 精确查看单个 key 的内存占用（含元数据开销）。",
+      "BigKey 治理方案：①拆分——大 Hash 按字段前缀或哈希取模拆成多个小 Hash（在 Cluster 下用 hash tag 保证同 slot）；②渐进删除——对大 Hash 用 HSCAN 分批 HDEL 每次删除几百个字段，最后 DEL 空 key；③Redis 4.0+ 的 UNLINK 命令异步删除，只在主线程做 O(1) 的键空间摘除，实际内存释放由后台 bio 线程完成不阻塞主线程。相关配置：lazyfree-lazy-expire yes、lazyfree-lazy-server-del yes 让过期删除和隐式删除也异步化。"
+    ],
+    "followUp": [
+      "UNLINK 和 DEL 的区别在底层是什么？（答：UNLINK 只是从键空间的 dict 中摘除引用 O(1)，内存回收由 bio 线程异步执行；DEL 是同步释放所有内存）",
+      "如何预防 BigKey 的产生？（答：代码 Review 阶段关注数据结构设计、上线前评估数据增长、监控系统设置 BigKey 告警阈值）"
+    ]
+  },
+  {
+    "id": "R7-05",
+    "title": "慢查询日志与延迟监控——SLOWLOG 和 LATENCY 的实战配置",
+    "category": "性能优化与线程模型",
+    "categoryId": 7,
+    "level": "L2",
+    "background": "慢查询排查是 Redis 运维的基本功，面试官通过此题考察候选人是否有实际的 Redis 运维和性能调优经验。",
+    "answerPoints": [
+      "SLOWLOG 记录执行时间超过阈值的命令，注意它只计算命令在 Redis 内部的执行时间，不包含网络传输延迟和客户端排队等待时间。配置项：slowlog-log-slower-than 10000（单位微秒，默认 10ms），slowlog-max-len 128（最多保存 128 条慢查询记录，生产建议调大到 1000 以保留更多历史）。",
+      "使用方式：SLOWLOG GET [n] 查看最近 N 条慢查询记录，每条包含唯一 ID、发生时间戳、执行耗时（微秒）、完整命令及参数。SLOWLOG LEN 查看当前积累条数，SLOWLOG RESET 清空日志。建议接入监控系统定时拉取慢查询日志并告警。",
+      "LATENCY MONITOR（Redis 2.8.13+）是更全面的延迟监控工具，记录各类事件的延迟峰值，包括命令执行、fork 操作、AOF 写入、RDB 保存等。需通过 CONFIG SET latency-monitor-threshold 100 开启（超过 100ms 的事件才记录）。LATENCY LATEST 查看各事件最近一次延迟，LATENCY HISTORY event 查看某事件的延迟历史。",
+      "客户端侧延迟测试工具：redis-cli --latency 持续测量客户端到 Redis 的 RTT 并显示最小/最大/平均值；--latency-history 按时间段分组显示延迟变化趋势；--latency-dist 以可视化图表展示延迟分布。这些工具从客户端视角衡量完整链路延迟，与 SLOWLOG 互补。"
+    ],
+    "followUp": [
+      "SLOWLOG 中经常看到哪些命令？如何优化？（答：KEYS/HGETALL/SMEMBERS/SORT 等全量操作，用 SCAN 系列命令替代）",
+      "慢查询的时间不包含网络延迟，那如何监控网络层面的延迟？（答：redis-cli --latency 从客户端测 RTT，或在网络层面用 tcpdump 抓包分析）"
+    ]
+  },
+  {
+    "id": "R7-06",
+    "title": "客户端连接池与 TCP 调优——高并发场景下的连接管理",
+    "category": "性能优化与线程模型",
+    "categoryId": 7,
+    "level": "L2/L3",
+    "background": "连接管理是 Redis 性能调优中容易被忽视的隐藏 boss，很多线上 Redis 性能问题的根因不在 Redis 本身，而在客户端连接池配置不当或 TCP 参数未优化。",
+    "answerPoints": [
+      "Redis 每个客户端连接占用一个文件描述符（fd）加上约 10KB 内存（输入缓冲区 + 输出缓冲区）。maxclients 默认 10000，受限于操作系统的 ulimit 设置。大量短连接会导致 TCP 三次握手和 AUTH 认证的开销累积。",
+      "连接池的核心价值是复用已建立的 TCP 连接：每次新建连接需要三次握手 + Redis AUTH 认证，延迟约 1-2ms；连接池复用长连接将此延迟降为接近 0。没有连接池的应用在高并发下会产生大量 TIME_WAIT 状态的 socket，耗尽端口资源。",
+      "连接池关键配置参数：最大连接数（maxTotal/maxActive）控制连接上限避免压垮 Redis；最小空闲连接（minIdle）保证突发流量时有连接可用；最大等待时间（maxWaitMillis）防止无限等待；空闲连接检测（testWhileIdle + timeBetweenEvictionRuns）定期探活淘汰坏连接。",
+      "Redis 侧 TCP 调优：tcp-backlog 默认 511 建议调大到 2048（全连接队列长度）；timeout 设置空闲连接超时自动关闭（默认 0 不关闭，建议设 300s 防连接泄漏）；tcp-keepalive 默认 300 秒发送 TCP keepalive 探测包。Linux 内核层面需配合：net.core.somaxconn 必须 ≥ tcp-backlog 否则被截断，vm.overcommit_memory = 1 允许 fork 时过量提交内存（RDB/AOF rewrite 需要）。"
+    ],
+    "followUp": [
+      "连接池设太大有什么问题？（答：Redis 是单线程处理命令，连接数再多命令也是排队串行执行，太多连接反而增加 fd 和内存开销）",
+      "Cluster 模式下连接池是 per-node 还是 per-cluster？（答：per-node，每个节点维护独立的连接池，客户端 SDK 负责路由和连接管理）"
+    ]
+  },
+  {
+    "id": "R7-07",
+    "title": "KEYS 命令的罪与 SCAN 的赎——全量遍历的正确姿势",
+    "category": "性能优化与线程模型",
+    "categoryId": 7,
+    "level": "L2",
+    "background": "KEYS 是 Redis 最危险的命令之一，几乎每个有经验的 Redis 使用者都有被 KEYS * 搞出过线上事故的惨痛经历。面试官通过此题考察候选人的生产安全意识。",
+    "answerPoints": [
+      "KEYS pattern 命令遍历整个 key 空间匹配指定模式，时间复杂度 O(N)——N 是 Redis 中所有 key 的数量而非匹配结果数。即使 pattern 只匹配到 1 个 key，仍然需要扫描全部 key。",
+      "典型生产事故场景：KEYS * 在百万级甚至千万级 key 的 Redis 实例上执行，耗时数秒甚至数十秒，阻塞所有其他请求 → 下游服务大面积超时 → 级联故障 → 服务雪崩。一个运维人员的手误可能导致整个业务瘫痪。",
+      "SCAN cursor [MATCH pattern] [COUNT count] 是 KEYS 的安全替代方案：基于游标（cursor）增量迭代遍历，每次只扫描少量 bucket 返回部分结果和新游标，不会长时间阻塞 Redis 主线程。调用方循环 SCAN 直到返回游标为 0 表示遍历完成。",
+      "SCAN 的重要特性：①可能返回重复结果（客户端需要自行去重）；②遍历过程中新增或删除的 key 可能出现也可能不出现，不保证一致性快照；③COUNT 参数是给 Redis 的「建议值」而非精确限制，实际返回数量可能多于或少于 COUNT；④游标本质是 dict 的 bucket 索引，使用 reverse binary iteration（高位进位加法）算法保证 rehash 过程中不漏扫不重扫。",
+      "同族命令 HSCAN/SSCAN/ZSCAN 分别用于 Hash/Set/ZSet 的增量遍历，API 形式与 SCAN 一致。生产环境强烈建议通过 rename-command KEYS \"\" 禁用 KEYS 命令，或使用 Redis 6.0+ 的 ACL 机制限制危险命令的执行权限。"
+    ],
+    "followUp": [
+      "SCAN 为什么可能返回重复元素？（答：rehash 期间同一个元素可能在 ht[0] 和 ht[1] 中都被遍历到；reverse binary iteration 算法尽量减少但不完全消除重复）",
+      "SCAN 的 COUNT 参数和实际返回数量是什么关系？（答：COUNT 只是建议每次扫描多少个 bucket，实际返回的 key 数量取决于 bucket 中有多少非空 entry，可能远多于或远少于 COUNT）"
+    ]
+  }
+]

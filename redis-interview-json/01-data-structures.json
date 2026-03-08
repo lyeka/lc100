@@ -1,0 +1,154 @@
+[
+  {
+    "id": "R1-01",
+    "title": "SDS 与 C 字符串的本质差异——为什么 Redis 不用 char*",
+    "category": "数据结构与编码原理",
+    "categoryId": 1,
+    "level": "L2",
+    "background": "SDS（Simple Dynamic String）是 Redis 最基础的数据结构，几乎所有字符串操作都建立在它之上。面试官常问为什么不直接用 C 标准库的 char*，这背后是对 C 语言字符串本质缺陷的深刻理解。",
+    "answerPoints": [
+      "SDS 结构体包含 len（已使用长度）、alloc（分配总长度）、flags（类型标识）、buf[]（实际数据缓冲区）四个字段。获取字符串长度是 O(1) 操作，直接读 len 字段即可，而 C 字符串的 strlen() 需要遍历到 '\\0' 终止符，时间复杂度为 O(N)。",
+      "SDS 是二进制安全的（binary safe），因为它用 len 而非 '\\0' 判断字符串结束位置，可以存储任意二进制数据包括中间含 '\\0' 的内容。C 字符串遇到 '\\0' 就截断，无法存储图片、序列化数据等二进制内容。",
+      "SDS 杜绝了缓冲区溢出问题：每次修改时先检查 alloc 是否足够，不够则自动扩容。C 字符串的 strcat() 等函数不做边界检查，拼接时如果目标缓冲区不够大就会溢出覆盖相邻内存，这是 C 程序安全漏洞的常见来源。",
+      "空间预分配策略减少内存重分配次数：修改后如果 len < 1MB 则预分配与 len 等量的空闲空间（翻倍），如果 len >= 1MB 则每次多分配 1MB。惰性释放策略在字符串缩短时不立即回收多余空间，而是保留在 alloc 中供后续使用，避免频繁 realloc。",
+      "SDS 的 buf[] 末尾仍保留 '\\0' 终止符，因此可以直接复用 C 标准库的部分字符串函数（如 printf(\"%s\", s->buf)），兼容已有的 C 字符串 API 而无需额外转换。"
+    ],
+    "codeExample": {
+      "code": "/* Redis SDS 结构定义（sdshdr8 为例） */\nstruct __attribute__ ((__packed__)) sdshdr8 {\n    uint8_t len;        /* 已使用长度 */\n    uint8_t alloc;      /* 分配总长度（不含头部和 '\\0'） */\n    unsigned char flags; /* 低 3 位标识类型：SDS_TYPE_8 */\n    char buf[];          /* 柔性数组，实际数据存储区 */\n};\n\n/* 对比 C 字符串 */\n// C: char *s = \"hello\";  strlen(s) = O(N)\n// SDS: sds s = sdsnew(\"hello\");  sdslen(s) = O(1)",
+      "language": "c",
+      "explanation": "sdshdr8 使用 __attribute__((__packed__)) 避免编译器填充对齐字节，确保内存布局紧凑。buf 是柔性数组成员（flexible array member），与头部结构体一次性分配在连续内存中。"
+    },
+    "followUp": [
+      "SDS 有几种类型（sdshdr5/8/16/32/64）？为什么要区分？（答：根据字符串长度选择最小头部，短字符串用 sdshdr5/8 只需 1-3 字节头部，节省内存）",
+      "embstr 和 raw 编码的区别？44 字节的分界线怎么来的？（答：embstr 将 redisObject 和 SDS 一次分配在连续 64 字节内存中，64 - 16(redisObject) - 3(sdshdr8 头) - 1('\\0') = 44）"
+    ]
+  },
+  {
+    "id": "R1-02",
+    "title": "dict 渐进式 rehash——在线扩容如何做到不阻塞请求",
+    "category": "数据结构与编码原理",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "background": "Redis 的 dict 是所有 key-value 存储的底层容器，也是哈希表类型（Hash）和集合类型（Set）的实现基础。当哈希表需要扩容或缩容时，Redis 采用渐进式 rehash 确保不会因为一次性数据迁移而阻塞客户端请求。",
+    "answerPoints": [
+      "dict 结构内部维护两个哈希表 ht[0] 和 ht[1]。正常状态下只使用 ht[0]，ht[1] 为空。当触发 rehash 时，为 ht[1] 分配新的桶数组（大小为第一个 >= ht[0].used * 2 的 2^N），然后开始将 ht[0] 的数据逐步迁移到 ht[1]。",
+      "渐进式迁移的核心机制：每次对字典执行增删改查操作时，顺带将 ht[0] 中 rehashidx 指向的桶（bucket）的所有节点迁移到 ht[1]，然后 rehashidx 加一。同时 Redis 的定时任务（serverCron）也会在空闲时辅助迁移一批桶（每次最多 100 个桶，耗时限 1ms），加速 rehash 进程。",
+      "rehash 期间读写路由规则：查找操作先查 ht[0] 再查 ht[1]；新增操作直接写入 ht[1]（保证 ht[0] 只减不增）；删除和更新操作在两个表中都要检查。当 ht[0] 所有桶迁移完毕，将 ht[1] 赋值给 ht[0]，清空 ht[1]，rehashidx 重置为 -1。",
+      "扩容触发条件取决于负载因子（load factor = used / size）：没有执行 BGSAVE 或 BGREWRITEAOF 时负载因子 >= 1 就扩容；正在执行子进程操作时提高阈值到 >= 5 才扩容，因为此时进程使用 COW 机制，频繁写入会大量复制内存页。缩容条件是负载因子 < 0.1。",
+      "渐进式 rehash 的代价是空间：rehash 期间同时持有两个哈希表，最坏情况下内存占用翻倍。但时间上把 O(N) 的集中迁移摊还到了每次操作的 O(1) 中，对延迟敏感的 Redis 而言这是正确的权衡。"
+    ],
+    "followUp": [
+      "rehash 期间读写操作如何路由？（答：读先 ht[0] 后 ht[1]，写直接到 ht[1]，确保 ht[0] 单调递减）",
+      "为什么 BGSAVE 时提高扩容阈值到 5？（答：BGSAVE fork 子进程后父子共享内存页，扩容触发大量写入导致 COW 复制，内存开销倍增。提高阈值减少 rehash 概率）"
+    ]
+  },
+  {
+    "id": "R1-03",
+    "title": "ziplist 到 listpack 的演进——连锁更新问题是怎么消除的",
+    "category": "数据结构与编码原理",
+    "categoryId": 1,
+    "level": "L3",
+    "background": "Redis 7.0 全面使用 listpack 替换了 ziplist 作为紧凑列表的底层编码。面试官常问替换的根本原因，核心就是 ziplist 的连锁更新（cascade update）问题。",
+    "answerPoints": [
+      "ziplist 是一块连续内存的紧凑列表，每个节点包含 prevlen（前一节点长度）和 encoding（当前节点编码和长度）两个头部字段。prevlen 采用变长编码：前一节点长度 < 254 时用 1 字节存储，>= 254 时用 5 字节存储（首字节 0xFE + 4 字节实际长度）。",
+      "连锁更新发生的场景：假设连续多个节点的长度都在 250-253 字节之间（恰好 prevlen 只需 1 字节），此时在头部插入一个 >= 254 字节的节点，第二个节点的 prevlen 需要从 1 字节扩展到 5 字节，导致自身长度增加 4 字节可能也超过 254，触发下一个节点的 prevlen 也要扩展——像多米诺骨牌一样逐个传播。最坏情况下时间复杂度为 O(N²)。",
+      "listpack 的解决方案是彻底取消 prevlen 字段。每个节点在尾部存储自身总长度（element-total-len），同样使用变长编码但只描述自身而非前一节点。反向遍历时从节点尾部读取 element-total-len 往前回溯定位到节点起始位置。由于每个节点只记录自己的长度，修改任何一个节点不会影响其他节点的头部信息，从根本上消除了连锁更新。",
+      "从工程角度看，ziplist 的连锁更新虽然最坏 O(N²) 但实际触发概率极低（需要大量节点恰好处于 250-253 字节的临界区间），Redis 使用 ziplist 多年也很少出问题。但对于追求确定性延迟的系统，消除最坏情况比优化平均情况更重要——这就是 listpack 替换 ziplist 的设计哲学。"
+    ],
+    "followUp": [
+      "哪些数据类型的底层编码从 ziplist 切换到了 listpack？（答：Hash、ZSet、List 的紧凑编码在 Redis 7.0 中全部切换到 listpack）",
+      "ziplist 在什么场景下连锁更新的概率最高？（答：大量节点长度在 250-253 字节的临界区间且连续排列时概率最高，但这种数据分布在实际业务中极为罕见）"
+    ]
+  },
+  {
+    "id": "R1-04",
+    "title": "quicklist 的设计哲学——为什么不直接用双向链表存 List",
+    "category": "数据结构与编码原理",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "background": "Redis 3.2 引入 quicklist 取代了之前 List 类型的双编码方案（小列表用 ziplist，大列表用 linkedlist）。quicklist 统一了 List 的底层实现，是空间效率和时间效率的精妙平衡。",
+    "answerPoints": [
+      "quicklist 本质是一个双向链表，但每个链表节点（quicklistNode）内部不是存单个元素，而是包含一个 ziplist（Redis 7.0 后为 listpack）。这种设计兼顾了双向链表 O(1) 头尾操作的优势和连续内存布局的缓存友好性——纯链表每个节点一次指针跳转，CPU 缓存命中率极低。",
+      "list-max-ziplist-size（Redis 7.0 后改名为 list-max-listpack-size）控制每个节点内 ziplist/listpack 的大小。正数表示最大元素个数，负数表示字节限制：-1=4KB、-2=8KB（默认）、-3=16KB、-4=32KB、-5=64KB。选择 -2（8KB）是因为它大致等于两个内存页，兼顾了内存效率和操作性能。",
+      "quicklist 支持对中间节点进行 LZF 压缩以进一步节省内存。list-compress-depth 配置控制两端各保留多少个节点不压缩：默认 0（不压缩），1 表示头尾各 1 个节点不压缩、中间全部压缩。这基于 List 的访问模式——LPUSH/LPOP/RPUSH/RPOP 集中在两端，中间节点是冷数据，压缩后不影响热路径性能。",
+      "与纯 linkedlist 的对比：linkedlist 每个节点需要 prev/next 两个指针（16 字节）加上 malloc 的元数据开销（通常 16 字节），存储一个小整数反而比数据本身大 10 倍以上。quicklist 将多个元素打包在连续内存中，极大减少了指针和内存分配器的开销，对于包含大量小元素的列表，内存节省可达 5-10 倍。"
+    ],
+    "followUp": [
+      "quicklist 的 compress 配置对读写性能有什么影响？（答：压缩节点读取时需要先解压再访问，写入时需要解压修改再重新压缩，增加了 CPU 开销。但只影响中间节点，两端热数据不受影响）",
+      "为什么选择压缩中间节点而非头尾节点？（答：List 的典型使用模式是队列或栈，操作集中在头尾。中间节点被访问的概率远低于两端，压缩中间节点的收益大于代价）"
+    ]
+  },
+  {
+    "id": "R1-05",
+    "title": "skiplist 在 ZSet 中的角色——为什么不用红黑树或 B+ 树",
+    "category": "数据结构与编码原理",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "background": "「ZSet 为什么用跳表而不用红黑树」几乎是所有大厂 Redis 面试的必问题。这个问题的答案不仅涉及数据结构特性，还涉及 Antirez 的工程哲学。",
+    "answerPoints": [
+      "ZSet 使用 skiplist + dict 双索引结构：skiplist 按 score 有序存储支持 O(logN) 的范围查询（ZRANGEBYSCORE、ZRANK 等），dict 按 member 做哈希映射支持 O(1) 的精确查找（ZSCORE）。两者共享 member 和 score 的指针，不会重复存储数据。",
+      "skiplist 实现极其简单，Redis 的实现仅约 200 行 C 代码，远少于红黑树的 500+ 行。Antirez 本人明确说过选择 skiplist 的首要原因就是实现简单，且在实际性能测试中与红黑树效率相当。代码越简单意味着 bug 越少、调试越容易、维护成本越低。",
+      "skiplist 天然支持范围操作且实现直观：找到起始节点后沿 level[0] 链表顺序遍历即可，而红黑树的范围遍历需要中序遍历，实现复杂度更高且局部性不如链表顺序访问。这对 ZRANGEBYSCORE 这类高频命令至关重要。",
+      "与 B+ 树的对比：B+ 树为磁盘 I/O 优化设计，节点大小对齐磁盘页以减少寻道次数，但在纯内存场景下这个优势不存在。skiplist 在内存中的随机访问效率与 B+ 树相当，且实现更简单、不需要处理节点分裂合并等复杂操作。",
+      "并发修改方面 skiplist 也更友好：修改只影响局部节点的前后指针，加局部锁即可（虽然 Redis 主线程是单线程，但这个特性对 skiplist 的通用性有价值）。红黑树的旋转操作可能影响树的大范围结构，并发控制更复杂。"
+    ],
+    "followUp": [
+      "skiplist 最高多少层？概率是多少？（答：Redis 的 skiplist 最高 32 层（ZSKIPLIST_MAXLEVEL），每个节点晋升到上一层的概率为 0.25（ZSKIPLIST_P），期望层高约 log₄(N)）",
+      "ZSet 在什么条件下从 listpack 升级为 skiplist？（答：元素数量超过 zset-max-listpack-entries（默认 128）或任意元素大小超过 zset-max-listpack-value（默认 64 字节）时升级）"
+    ]
+  },
+  {
+    "id": "R1-06",
+    "title": "Redis Object 的编码转换——什么条件触发 ziplist 升级为 skiplist",
+    "category": "数据结构与编码原理",
+    "categoryId": 1,
+    "level": "L2",
+    "background": "Redis 用 redisObject 包装所有数据对象，每种数据类型都有多种底层编码方式，根据数据特征自动选择最优编码。理解编码转换的触发条件是优化 Redis 内存的关键。",
+    "answerPoints": [
+      "redisObject 结构体包含五个字段：type（4 位，标识 String/List/Hash/Set/ZSet 五种类型）、encoding（4 位，标识具体编码方式，共 11 种）、lru（24 位，记录最近访问时间或 LFU 频率）、refcount（引用计数，用于内存管理和对象共享）、ptr（指向实际数据结构的指针）。",
+      "String 类型有三种编码：值为整数且在 long 范围内用 int 编码（直接存在 ptr 中）；字符串长度 ≤ 44 字节用 embstr 编码（redisObject 和 SDS 一次性分配在连续 64 字节内存中，只需一次 malloc 和一次 free）；超过 44 字节用 raw 编码（redisObject 和 SDS 分开分配，需要两次 malloc）。",
+      "List 类型用 listpack（元素少且小）或 quicklist（元素多或大）。Hash 类型用 listpack 或 hashtable，转换阈值为 hash-max-listpack-entries=128 和 hash-max-listpack-value=64。Set 类型用 intset（全为整数且数量少）、listpack（Redis 7.2+ 非全整数但数量少）或 hashtable。ZSet 用 listpack 或 skiplist，阈值为 zset-max-listpack-entries=128 和 zset-max-listpack-value=64。",
+      "编码转换是不可逆的单向升级：一旦从紧凑编码（listpack/intset）升级为通用编码（hashtable/skiplist/quicklist），即使后续删除元素使其重新满足紧凑编码条件也不会降级回去。原因是降级需要全量扫描验证所有剩余元素是否符合紧凑编码要求，这个 O(N) 的操作在删除路径上是不可接受的性能开销。"
+    ],
+    "followUp": [
+      "编码升级后能降级回去吗？为什么？（答：不能，降级需要遍历所有元素验证是否满足紧凑编码条件，代价过高。且升级通常意味着数据量已超阈值，频繁升降级反而浪费 CPU）",
+      "OBJECT ENCODING 命令在生产环境有什么用途？（答：排查内存异常时诊断 key 使用了哪种底层编码，判断是否需要调整阈值参数优化内存使用）"
+    ]
+  },
+  {
+    "id": "R1-07",
+    "title": "intset 的升级机制——为什么只能升级不能降级",
+    "category": "数据结构与编码原理",
+    "categoryId": 1,
+    "level": "L2",
+    "background": "intset 是 Redis Set 类型在存储少量整数时的紧凑编码方式。它的升级（upgrade）机制是面试中的经典考点，考察对内存布局和工程权衡的理解。",
+    "answerPoints": [
+      "intset 是一个有序整数数组，结构包含 encoding（当前位宽：INTSET_ENC_INT16/INT32/INT64）、length（元素数量）和 contents[]（实际数据）三个字段。所有元素按从小到大排列，查找使用二分搜索 O(logN)。有序存储的好处是支持快速查找且内存紧凑，没有哈希表的桶和链表开销。",
+      "当插入一个新元素的值超出当前 encoding 的表示范围时触发升级。升级过程：①分配新的更大内存（按新的位宽 × (length+1) 计算）；②从后往前逐个将旧元素按新位宽重新编码并移动到正确位置（从后往前是为了避免覆盖尚未移动的元素）；③在正确位置插入新元素。整个过程是 O(N) 的，但由于 intset 元素数量很少（超过 set-max-intset-entries 默认 512 就转 hashtable），实际开销很小。",
+      "升级不可逆的设计决策：删除大整数后理论上可以降级到更小位宽，但这需要遍历所有剩余元素找到最大值判断是否适配更小位宽，O(N) 的扫描代价在每次删除时执行是不值得的。而且一旦出现过大整数，后续再次出现的概率不低，频繁升降级反而更浪费 CPU。这是典型的空间换时间的工程权衡——多用几字节内存避免删除路径的额外开销。",
+      "intset 与 hashtable 的转换条件：当元素数量超过 set-max-intset-entries（默认 512）或者插入了非整数元素时，Redis 会将 intset 转为 hashtable 编码。转换是单向不可逆的——一旦变成 hashtable 即使删除非整数元素也不会回退为 intset，这与升级不可降级是同一设计理念：避免在删除路径上引入 O(N) 扫描。"
+    ],
+    "followUp": [
+      "intset 元素数量超过多少会转为 hashtable？（答：超过 set-max-intset-entries，默认值为 512。或者插入了非整数元素也会立即转为 hashtable）",
+      "intset 为什么要保持有序？（答：支持二分查找 O(logN) 判断元素是否存在，如果无序则只能线性扫描 O(N)。且有序数组的 CPU 缓存命中率远优于链表和哈希表）"
+    ]
+  },
+  {
+    "id": "R1-08",
+    "title": "Stream 底层的 Rax 树——消息队列场景下的 ID 索引设计",
+    "category": "数据结构与编码原理",
+    "categoryId": 1,
+    "level": "L3",
+    "background": "Redis 5.0 引入的 Stream 是 Redis 作为消息队列的正式方案，替代了之前用 List 或 Pub/Sub 模拟消息队列的不完整实现。Stream 的底层存储使用了 Rax（Radix Tree），这是 Redis 中最复杂的数据结构之一。",
+    "answerPoints": [
+      "Stream 的消息存储在 Rax（基数树/压缩前缀树）中。Rax 是一种空间优化的 trie 树，将只有一个子节点的路径压缩成单个节点，大幅减少树的深度和节点数量。消息 ID 格式为 <毫秒时间戳>-<序号>（如 1678886400000-0），Rax 按 ID 的字节序有序存储，天然支持范围查询（XRANGE/XREVRANGE）。",
+      "为了减少 Rax 树的节点数量，每个 Rax 叶子节点并不只存一条消息，而是包含一个 listpack 来存储多条消息。具有相同 ID 前缀（通常是同一毫秒内）的消息被打包在同一个 listpack 中，这种设计大幅降低了树的节点数和内存开销，也提高了顺序读取时的缓存局部性。",
+      "消费者组（Consumer Group）是 Stream 的核心机制，每个消费者组独立维护一个 last_delivered_id（最后投递位置）和 PEL（Pending Entries List，待确认消息列表）。PEL 也用 Rax 存储，按消息 ID 索引，记录了哪条消息被哪个消费者读取但尚未 XACK 确认。XACK 后从 PEL 中删除该条目，实现可靠的消息确认机制。",
+      "Stream 相比 Pub/Sub 的本质优势在于持久化和消息可靠性：Stream 的消息会持久化到 RDB/AOF，重启不丢失；支持消费者组和消息确认，消费者崩溃后可以从 PEL 中重新获取未确认消息（XPENDING + XCLAIM）。Pub/Sub 是 fire-and-forget 模式，消息不持久化，订阅者离线期间的消息直接丢失。"
+    ],
+    "followUp": [
+      "Stream 相比 Kafka 在哪些场景下更合适？哪些场景不适合？（答：适合中小规模、低延迟、已有 Redis 基础设施的场景；不适合需要海量吞吐、多分区并行、长期消息存储的场景，Kafka 在这些方面有绝对优势）",
+      "XREADGROUP 的 BLOCK 模式和 Pub/Sub 的本质区别？（答：BLOCK 模式是消费者主动拉取（pull）且支持消息确认，Pub/Sub 是服务端主动推送（push）且无确认机制。BLOCK 期间 Redis 将客户端挂起不消耗 CPU，新消息到达后唤醒返回）"
+    ]
+  }
+]

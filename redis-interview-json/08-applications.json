@@ -1,0 +1,148 @@
+[
+  {
+    "id": "R8-01",
+    "title": "ZSet 实现排行榜——实时积分榜的增删改查全方案",
+    "category": "应用场景与数据建模",
+    "categoryId": 8,
+    "level": "L2",
+    "background": "排行榜是 ZSet 最经典也最高频的应用场景，面试官期望候选人不仅会基本的 ZADD/ZRANGE，还能处理多维度排序、分页、相同分数排序等进阶需求。",
+    "answerPoints": [
+      "数据模型设计：ZADD leaderboard score userId，score 存储积分，member 存储用户 ID。ZSet 内部按 score 排序，相同 score 按 member 的字典序排序。整个数据结构天然就是一个有序排行榜。",
+      "实时更新积分：ZINCRBY leaderboard delta userId 原子性地增加或减少用户积分，无需先 GET 再 SET，避免并发下的竞态条件。返回值是更新后的新分数，一条命令完成读写。",
+      "查询排名和 Top-N：ZREVRANK leaderboard userId 获取用户从高到低的排名（0-based，O(logN)）；ZREVRANGE leaderboard 0 9 WITHSCORES 获取前 10 名及其分数；ZREVRANGEBYSCORE 支持按分数范围查询并通过 LIMIT offset count 实现分页。",
+      "查看某人周围的排名：先用 ZREVRANK 获取目标用户排名 rank，再 ZREVRANGE leaderboard (rank-5) (rank+5) WITHSCORES 展示前后各 5 名玩家，实现「我在哪里」的社交体验。",
+      "多维度排序技巧：当分数相同时需按时间排序（先到先得），将 score 设计为 score * 10^13 + (MAX_TIMESTAMP - actualTimestamp)。这样高分在前，同分时时间戳小的（更早达到的）score 值更大排在前面，一个 score 字段同时编码两个维度。"
+    ],
+    "followUp": [
+      "排行榜数据量很大（亿级）怎么办？（答：分桶/分区间策略，前 1000 名用 ZSet 实时计算，剩余用户定时 batch 统计）",
+      "如何实现周榜/月榜？（答：key 加时间后缀如 leaderboard:2024W01，新周期创建新 key，用 ZUNIONSTORE 合并历史，定期清理过期 key）"
+    ]
+  },
+  {
+    "id": "R8-02",
+    "title": "滑动窗口限流——用 ZSet 实现精准的请求频率控制",
+    "category": "应用场景与数据建模",
+    "categoryId": 8,
+    "level": "L2/L3",
+    "background": "限流是后端面试必考的系统设计题，ZSet 滑动窗口方案因其精准性和实现优雅性成为面试高频考点。面试官期望候选人能对比多种限流算法并分析各自的适用场景。",
+    "answerPoints": [
+      "滑动窗口原理：记录每个请求的精确时间戳，统计时间窗口内的请求数量与阈值比较。相比固定窗口计数器（INCR + EXPIRE），滑动窗口不会出现临界突刺问题（固定窗口在两个窗口交界处可能瞬间通过 2 倍的请求量）。",
+      "Redis ZSet 实现步骤：ZADD rate:userId currentTimestamp currentTimestamp（member 和 score 都用时间戳）→ ZREMRANGEBYSCORE rate:userId 0 (currentTimestamp - windowSize)（清理窗口外的过期数据）→ ZCARD rate:userId（统计当前窗口内的请求数）→ 与阈值比较决定放行或拒绝。",
+      "原子性保障：以上多步操作必须用 Lua 脚本封装成原子操作，否则在高并发下多个请求并行执行会出现竞态条件导致限流失效（多个请求同时读到未超限的计数然后全部放行）。每个 key 设置 TTL 等于窗口大小，自动清理不活跃用户的数据避免内存泄漏。",
+      "方案对比：固定窗口（INCR + EXPIRE）实现最简单但有临界突刺；滑动窗口（ZSet）精准但每个请求都要写入一条记录内存开销较大；令牌桶（Token Bucket）适合允许一定突发流量的平滑限流；漏桶（Leaky Bucket）适合需要固定速率处理的场景。生产环境通常组合使用多层限流策略。"
+    ],
+    "followUp": [
+      "高并发下 ZSet 限流的性能瓶颈在哪里？（答：每个请求都要写 ZSet，QPS 极高时 Redis 成瓶颈。优化方案：本地预扣额度 + Redis 定期同步补充，或用本地滑动窗口兜底）",
+      "Redis 的 CL.THROTTLE 命令（RedisCell 模块）了解吗？（答：基于 GCRA 算法的原生限流命令，一条命令完成判断 + 计数，比 Lua 脚本更高效）"
+    ]
+  },
+  {
+    "id": "R8-03",
+    "title": "延迟队列——用 ZSet score 存时间戳的生产级实现",
+    "category": "应用场景与数据建模",
+    "categoryId": 8,
+    "level": "L2/L3",
+    "background": "延迟队列是电商和订单系统的常见需求（如订单超时关闭、优惠券到期提醒），Redis ZSet 方案因其轻量和低延迟在中小规模场景中被广泛使用。",
+    "answerPoints": [
+      "业务场景：订单 30 分钟未支付自动关闭、优惠券到期前 1 小时提醒、定时推送任务调度、会员到期降级等。核心需求是「在指定时间后触发某个动作」。",
+      "ZSet 实现模型：ZADD delay_queue executeTimestamp taskPayload，score 存储任务期望执行的 Unix 时间戳，member 存储任务内容（通常是 JSON 序列化的任务描述或任务 ID）。时间戳最小的任务排在最前面，天然按到期时间排序。",
+      "消费者轮询取任务：ZRANGEBYSCORE delay_queue 0 currentTimestamp LIMIT 0 1 取出一个已到期的任务 → ZREM delay_queue task 原子删除该任务。多个消费者并发竞争时，通过 ZREM 的返回值判断谁成功抢到任务（返回 1 的消费者执行，返回 0 的放弃）。",
+      "更可靠的消费方案：用 Lua 脚本将 ZRANGEBYSCORE + ZREM + RPUSH 封装为原子操作——到期任务从 ZSet 移到 List 作为就绪队列，消费者通过 BLPOP 阻塞等待消费，避免空轮询浪费 CPU。轮询间隔决定了任务执行的精度（通常设 100ms-1s），消费者崩溃可能导致任务丢失，生产环境需要 ACK 确认机制和失败重试。"
+    ],
+    "followUp": [
+      "这个方案和 RabbitMQ 的死信队列/延迟插件相比优缺点？（答：Redis 方案部署简单延迟低；RabbitMQ 方案更可靠有完整的消息确认和重试机制，适合对可靠性要求高的场景）",
+      "百万级延迟任务的性能问题如何解决？（答：按时间段分桶到不同 ZSet，如 delay_queue:20240115:10 存 10 点到期的任务，消费者只轮询当前时间段的 key）"
+    ]
+  },
+  {
+    "id": "R8-04",
+    "title": "HyperLogLog 基数统计——UV 统计的概率数据结构",
+    "category": "应用场景与数据建模",
+    "categoryId": 8,
+    "level": "L2",
+    "background": "HyperLogLog 是面试中考察概率数据结构的代表性题目，面试官希望候选人理解其「用极小空间换取近似精确」的设计哲学，以及在什么场景下可以接受这种精度损失。",
+    "answerPoints": [
+      "问题背景：统计页面 UV（独立访客数），如果用 Set 存储用户 ID——1 亿 UV 使用 64 位 ID 需要约 800MB 内存，成本巨大且随规模线性增长。HyperLogLog 用固定的约 12KB 内存即可估算最大 2^64 个不同元素的基数（去重计数），标准误差仅 0.81%。",
+      "核心命令：PFADD key element 添加元素到 HLL（重复元素不会增加计数）→ PFCOUNT key 获取基数估值 → PFMERGE destkey sourcekey1 sourcekey2 合并多个 HLL（用于合并不同时间段或不同维度的统计，如多个页面的总 UV）。",
+      "算法原理：基于概率论的伯努利试验思想，将每个元素哈希后观察二进制值的前导零位数。直觉理解：投 N 次硬币，最长连续正面的长度大致反映 N 的对数——观察到越长的前导零序列说明样本量越大。Redis 使用 16384 个桶（寄存器），每个桶记录该桶所见的最长前导零位数，最终通过调和平均数合并所有桶的估计值。",
+      "适用场景：页面 UV 统计、搜索关键词去重计数、每日活跃 IP 统计、广告独立曝光数——任何「有多少个不同的 XX」且容许小误差的场景。不适用于需要精确去重或需要知道具体是哪些元素的场景（HLL 只能计数不能枚举）。"
+    ],
+    "followUp": [
+      "0.81% 的误差率在业务上能接受吗？什么场景不能用 HLL？（答：UV 统计、趋势分析等完全可接受；涉及计费、对账等需精确数值的场景不能用）",
+      "PFCOUNT 可以对多个 key 操作，和 PFMERGE 有什么区别？（答：PFCOUNT 多 key 是临时合并计算不存储结果；PFMERGE 将合并结果存入目标 key 持久化保存）"
+    ]
+  },
+  {
+    "id": "R8-05",
+    "title": "Bitmap 位运算——签到系统与在线状态的空间极致压缩",
+    "category": "应用场景与数据建模",
+    "categoryId": 8,
+    "level": "L2",
+    "background": "Bitmap 是 Redis 空间效率最高的数据结构之一，面试官通过签到系统和在线状态这两个经典场景考察候选人对位运算的灵活运用能力。",
+    "answerPoints": [
+      "Bitmap 本质是 String 类型（SDS），Redis 提供 SETBIT/GETBIT 等位操作命令将 String 当作位数组使用。每个 bit 位只占 1 bit 空间，1 亿个位只需 12.5MB 内存，存储效率极高。",
+      "签到系统设计：SETBIT sign:userId:202401 dayOfMonth 1 表示某用户某天签到（每月一个 key，bit 位对应天数）。一年 365 天只需 46 字节。GETBIT 查询某天是否签到，BITCOUNT sign:userId:202401 统计本月签到总天数。连续签到判断可用 BITOP AND destkey key1 key2 ... 对多天取交集。",
+      "在线状态设计：SETBIT online dayOffset 1 标记用户 ID 为 dayOffset 的用户在线（整个系统共用一个 key），1 亿用户的在线状态仅需 12.5MB。BITCOUNT online 统计在线人数，BITOP AND/OR 支持多天交集（连续活跃用户）和并集（周活跃用户）的高效计算。",
+      "高级命令：BITFIELD（Redis 3.2+）可以对位串执行 GET/SET/INCRBY 等操作，支持多种位宽（u8/i16/u32 等），适合在一个 key 中紧凑存储多个小计数器。布隆过滤器的底层也是 Bitmap 加多个哈希函数实现的概率数据结构。BITPOS key bit [start] [end] 可以查找第一个值为 0 或 1 的 bit 位。"
+    ],
+    "followUp": [
+      "Bitmap 和 Set 存储用户签到数据，在什么数据规模下 Bitmap 更优？（答：用户基数大且活跃率高时 Bitmap 空间效率远高于 Set；用户稀疏时 Set 只存有签到的用户 ID 更节省）",
+      "BITPOS 命令有什么用？（答：查找第一个为 0 或 1 的位，可用于「本月第一次未签到是哪天」或「分配最小可用 ID」等场景）"
+    ]
+  },
+  {
+    "id": "R8-06",
+    "title": "GEO 地理位置——附近的人与门店搜索的底层实现",
+    "category": "应用场景与数据建模",
+    "categoryId": 8,
+    "level": "L2/L3",
+    "background": "LBS（基于位置的服务）是移动互联网的基础能力，外卖、打车、社交等 App 都依赖「附近搜索」功能。面试官通过此题考察候选人对 GeoHash 算法和 Redis GEO 实现原理的理解。",
+    "answerPoints": [
+      "Redis GEO 底层用 ZSet 实现：将经纬度通过 GeoHash 算法编码为 52 位整数作为 ZSet 的 score。因此 GEO 相关命令本质上是 ZSet 操作，所有 ZSet 的命令（ZREM/ZCARD 等）也适用于 GEO key。",
+      "GeoHash 算法原理：将地球表面递归二分（经度范围 [-180, 180] 二分 + 纬度范围 [-85.05, 85.05] 二分），经度和纬度的二进制位交叉编码。相邻的地理坐标 GeoHash 值大部分情况下也相近，本质是将二维空间映射到一维的空间填充曲线（Z 曲线/Peano 曲线）。",
+      "核心命令：GEOADD key longitude latitude member 添加位置信息；GEODIST key member1 member2 km 计算两点距离；GEOSEARCH key FROMLONLAT lng lat BYRADIUS 5 km COUNT 10 ASC（Redis 6.2+ 替代了旧的 GEORADIUS）搜索指定中心点半径内的成员并按距离排序；GEOPOS key member 获取成员的经纬度坐标。",
+      "性能与局限：GEOSEARCH 底层基于 ZSet 的范围查询，时间复杂度 O(logN + M)，N 是总元素数 M 是匹配结果数。GeoHash 存在边界问题——两个地理位置很近的点可能因为跨越区块边界而 GeoHash 前缀完全不同，Redis 通过同时搜索中心区块及周围 8 个相邻区块来解决此问题，保证不会遗漏。"
+    ],
+    "followUp": [
+      "Redis GEO 和专业的空间数据库（PostGIS/MongoDB）相比有什么局限？（答：Redis GEO 只支持点数据和圆形/矩形范围查询，不支持多边形、路径、空间索引等复杂空间查询）",
+      "如何用 Redis GEO 实现「附近的人」且支持按距离分页？（答：GEOSEARCH 的 COUNT + ASC 组合实现，但不支持 offset 需要客户端记录上次最远距离作为下次起点）"
+    ]
+  },
+  {
+    "id": "R8-07",
+    "title": "Pub/Sub vs Stream vs List——Redis 消息队列三种方案的权衡",
+    "category": "应用场景与数据建模",
+    "categoryId": 8,
+    "level": "L2/L3",
+    "background": "Redis 常被用作轻量级消息队列，但三种方案各有适用场景和局限性。面试官通过此题考察候选人的方案选型能力和对消息队列语义的理解深度。",
+    "answerPoints": [
+      "List 方案：LPUSH 生产 + BRPOP 阻塞消费，实现最简单的生产者-消费者模型。优点是简单可靠、消息持久化（不会因消费者离线丢失）。缺点是不支持多消费者组（一条消息只能被一个消费者消费）、不支持消息确认（ACK）——消费者 BRPOP 后崩溃则消息丢失。",
+      "Pub/Sub 方案：PUBLISH 发布 + SUBSCRIBE 订阅，实现发布-订阅模式。优点是支持多个消费者同时接收同一条消息（广播语义）、实时性好（消息立即推送不需要轮询）。致命缺点是消息不持久化——订阅者不在线时发送的消息永久丢失，且没有消息堆积能力，不适合需要可靠投递的场景。",
+      "Stream 方案（Redis 5.0+）：XADD 写入 + XREADGROUP 消费，提供完整的消息队列语义。支持消息持久化存储、消费者组（Consumer Group，多个消费者分摊消费）、消息确认（XACK）、消息追溯（按 ID 范围查询历史消息）和阻塞读取。PEL（Pending Entries List）机制确保可靠消费：消费者读取后消息进入 PEL，XACK 确认后从 PEL 移除；消费者崩溃可用 XCLAIM 将未确认消息转移给其他消费者。",
+      "选型建议：简单的后台任务队列 → List；实时通知和广播（如 WebSocket 消息分发、配置变更通知）→ Pub/Sub；需要可靠消息投递和消费者组 → Stream；大规模消息处理（百万级 TPS、海量消息堆积、分区扩展）→ Kafka/RocketMQ 等专业消息中间件。"
+    ],
+    "followUp": [
+      "Stream 对比 Kafka 的优势和劣势？（答：Stream 部署简单、延迟低（亚毫秒级）、无额外依赖；但吞吐量、分区扩展能力、消息堆积能力远不如 Kafka）",
+      "Redis Stream 消息积压了怎么办？（答：MAXLEN 或 MINID 限制 Stream 长度自动淘汰旧消息 + 增加消费者数量提升消费速度）"
+    ]
+  },
+  {
+    "id": "R8-08",
+    "title": "Redis 在秒杀系统中的完整方案——库存预扣、限流、排队的组合拳",
+    "category": "应用场景与数据建模",
+    "categoryId": 8,
+    "level": "L3",
+    "background": "秒杀系统设计是架构面试的终极 Boss 题，考察候选人将 Redis 多种能力（原子操作、Lua 脚本、限流、队列）组合运用的综合设计能力，以及对高并发系统分层防护的架构思维。",
+    "answerPoints": [
+      "整体架构分层防护：用户请求 → CDN 缓存静态页面 → Nginx 限流（limit_req_zone 限制单 IP 频率）→ 应用层 Redis 限流 → Redis 库存预扣 → MQ 异步下单 → DB 持久化。每一层过滤掉大量请求，只有极少数请求最终到达数据库，保护核心系统。",
+      "第一层前端防护：按钮点击后立即置灰防重复提交 + 图形验证码/滑块验证拦截机器人 + CDN 缓存秒杀商品的静态页面。这一层目标是过滤掉 90% 以上的无效请求（机器人、重复点击、爬虫），让合法用户的请求才能到达后端。",
+      "Redis 库存预扣（核心）：活动开始前将库存 SET seckill:stock:itemId 1000 预热到 Redis。使用 Lua 脚本保证原子性：GET stock → 判断 stock > 0 → DECR stock + RPUSH order_queue orderInfo，一个脚本完成「判断库存 + 扣减库存 + 订单入队」三步操作。Lua 脚本在 Redis 中原子执行不会被打断，彻底杜绝超卖。",
+      "异步下单与超时处理：消费者从 order_queue 中 BLPOP 取出订单信息 → 写入数据库创建正式订单 → 发送支付通知给用户。同时用延迟队列（ZSet score 存 30 分钟后的时间戳）设置支付超时检查：到期后查询支付状态，未支付则 INCR stock 回补库存 + 取消订单 + 释放占位。",
+      "终极兜底：数据库层面使用乐观锁 UPDATE stock SET num = num - 1 WHERE item_id = ? AND num > 0 作为防超卖的最后保障。即使 Redis 出现极端情况（如主从切换数据丢失），DB 层的 WHERE num > 0 条件保证库存不会减为负数。"
+    ],
+    "followUp": [
+      "如果 Redis 挂了秒杀怎么降级？（答：降级为直接走 DB 乐观锁扣减，同时大幅降低限流阈值保护数据库；或提前准备好本地缓存库存作为备用方案）",
+      "库存预扣后用户不付款如何回补？防止超卖的终极保障是什么？（答：延迟队列定时检查 + INCR 回补 Redis 库存 + 取消 DB 订单；终极保障是 DB 层的乐观锁 UPDATE ... WHERE num > 0）"
+    ]
+  }
+]

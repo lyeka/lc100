@@ -1,0 +1,155 @@
+[
+  {
+    "id": "R4-01",
+    "title": "主从复制的全量与增量同步——PSYNC 如何判断该走哪条路径",
+    "category": "高可用架构",
+    "categoryId": 4,
+    "level": "L2",
+    "background": "主从复制是 Redis 高可用的基础构建块，Sentinel 和 Cluster 的 failover 都依赖于主从复制机制。理解 PSYNC 的全量/增量判断逻辑是掌握 Redis 高可用的第一步。",
+    "answerPoints": [
+      "Redis 2.8+ 引入 PSYNC 命令替代旧的 SYNC 命令，核心改进是支持断线后的增量同步（partial resync），避免每次断连都触发全量同步。从节点连接主节点时发送 PSYNC replid offset，主节点据此判断走哪条路径。",
+      "全量同步（FULLRESYNC）触发条件：从节点的 replid 与主节点不匹配（第一次连接或主节点发生了 failover）、或者从节点的 offset 已不在主节点的 repl_backlog 范围内（断连时间过长数据已被覆盖）。全量同步流程：主节点 BGSAVE 生成 RDB → 发送 RDB 给从节点 → 从节点清空旧数据加载 RDB → 主节点将 BGSAVE 期间的增量命令发送给从节点。",
+      "增量同步（CONTINUE）触发条件：从节点的 replid 与主节点匹配，且 offset 仍在 repl_backlog 中。主节点直接从 backlog 中取出 offset 之后的命令发送给从节点，开销极小，通常在毫秒级完成。",
+      "replid（Replication ID）是每个主节点的唯一标识符，主节点重启或 failover 后会生成新的 replid。Redis 4.0 引入 replid2 机制：存储前一个主节点的 replid，使得从节点提升为新主后，其他从节点仍可通过 replid2 匹配实现增量同步而非全量同步。",
+      "同步期间的客户端影响：全量同步中从节点加载 RDB 时会阻塞所有查询请求（如果配置了 slave-serve-stale-data no）；主节点 BGSAVE 期间正常服务但有 fork 开销。增量同步几乎无感知。"
+    ],
+    "followUp": [
+      "无磁盘复制（repl-diskless-sync）是什么？有什么优势？（答：主节点不先写 RDB 到磁盘再发送，而是直接将 RDB 数据流式传输给从节点。适用于磁盘 IO 慢但网络带宽充足的场景，减少一次磁盘写入）",
+      "从节点的从节点（级联复制）有什么限制？（答：支持级联复制减轻主节点压力，但链条越长数据延迟越大；级联从节点不能直接增量同步于主节点，只能从其直接上级同步）"
+    ]
+  },
+  {
+    "id": "R4-02",
+    "title": "复制积压缓冲区(repl_backlog)——它满了会发生什么",
+    "category": "高可用架构",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "background": "repl_backlog 的大小直接决定了网络闪断后能否增量恢复。配置不当是生产环境频繁触发全量同步的最常见原因，一次不必要的全量同步可能导致主节点 CPU 和内存飙升。",
+    "answerPoints": [
+      "repl_backlog 是一个固定大小的环形缓冲区（ring buffer），存储主节点最近执行的写命令。它只在主节点上存在，且所有从节点共享同一份 backlog。环形结构意味着新数据写入时会覆盖最旧的数据。",
+      "默认大小仅 1MB（repl-backlog-size 1mb），在生产环境中极易被写满。当从节点断连后重连，如果断连期间的写入量超过 backlog 大小，从节点的 offset 已被覆盖，只能退化为全量同步。生产建议至少调大到 256MB 以上。",
+      "大小估算公式：backlog_size = disconnect_seconds × write_bytes_per_second。例如预期从节点可能断连 60 秒，主节点每秒写入 2MB 数据，则 backlog 至少需要 120MB（建议再乘以 2 留余量设为 256MB）。",
+      "backlog 在所有从节点都断开后默认保留 3600 秒后释放（repl-backlog-ttl 3600）。如果从节点在超时后重连，backlog 已被释放，必定触发全量同步。可设为 0 表示永不释放。",
+      "Redis 7.0 对 backlog 做了重要优化：支持共享的 replication backlog 和 per-replica offset tracking，减少了多从节点场景下的内存冗余。同时支持将 backlog 数据持久化到 AOF 中，重启后也能支持增量同步。"
+    ],
+    "followUp": [
+      "如何监控 backlog 的使用率判断是否需要扩容？（答：INFO replication 中的 repl_backlog_active、repl_backlog_size、repl_backlog_first_byte_offset 和 master_repl_offset 可计算当前使用比例）",
+      "全量同步对主节点性能的影响有多大？（答：BGSAVE 的 fork 开销 + RDB 文件传输占用网络带宽 + 传输期间增量命令缓冲占用内存。大实例全量同步可能导致主节点出现数秒的高延迟）"
+    ]
+  },
+  {
+    "id": "R4-03",
+    "title": "Sentinel 的故障检测与选主流程——从 SDOWN 到 ODOWN 再到 failover",
+    "category": "高可用架构",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "background": "Sentinel（哨兵）是 Redis 官方的高可用解决方案，负责监控主从节点健康、自动故障转移和通知客户端拓扑变更。Sentinel 的故障检测是两阶段的：先主观后客观，避免单点误判。",
+    "answerPoints": [
+      "Sentinel 集群建议部署至少 3 个节点（奇数个），分布在不同物理机或可用区，避免 Sentinel 本身成为单点。每个 Sentinel 独立监控主从节点，通过 PING 命令探测存活状态。",
+      "SDOWN（主观下线）：单个 Sentinel 在 down-after-milliseconds（默认 30000ms）内持续未收到主节点的有效 PING 回复（+PONG / -LOADING / -MASTERDOWN），则该 Sentinel 将主节点标记为 SDOWN。SDOWN 只是单个 Sentinel 的判断，可能是网络抖动导致的误判。",
+      "ODOWN（客观下线）：Sentinel 发现 SDOWN 后，向其他 Sentinel 发送 SENTINEL is-master-down-by-addr 命令询问意见。当同意主节点下线的 Sentinel 数量达到 quorum 阈值时，主节点被标记为 ODOWN。ODOWN 表示多数派确认了故障，触发后续 failover 流程。",
+      "Leader 选举：ODOWN 确认后，Sentinel 集群需要选出一个 Leader 来执行 failover。选举使用类 Raft 协议：每个发现 ODOWN 的 Sentinel 向其他 Sentinel 拉票（先到先得），获得 majority（多数派 N/2+1）选票的 Sentinel 成为 Leader。",
+      "Failover 流程：Leader Sentinel 从从节点中选出最优候选者（优先级 slave-priority 最低 → 复制偏移量最大即数据最新 → run_id 字典序最小），向其发送 SLAVEOF NO ONE 提升为新主，然后通知其他从节点 SLAVEOF 指向新主节点，最后更新 Sentinel 配置文件记录新拓扑。",
+      "Sentinel 之间的发现机制：所有 Sentinel 通过主节点的 Pub/Sub 频道 __sentinel__:hello 自动互相发现和交换信息（IP、端口、run_id、配置纪元），无需手动配置 Sentinel 之间的连接。"
+    ],
+    "followUp": [
+      "quorum 和 majority 有什么区别？为什么需要两个阈值？（答：quorum 用于 ODOWN 判定即'确认故障需要多少票'，majority 用于 Leader 选举即'执行 failover 需要多少授权'。quorum 可以配置为小于 majority，但 Leader 选举仍需 majority 保证安全性）",
+      "Sentinel 模式下客户端如何自动切换到新主节点？（答：客户端通过 Sentinel 的 API 获取当前主节点地址，并订阅 +switch-master 频道。failover 发生时 Sentinel 发布主节点切换消息，客户端自动重连新主）"
+    ]
+  },
+  {
+    "id": "R4-04",
+    "title": "Cluster 的数据分片——16384 个 slot 如何分配和迁移",
+    "category": "高可用架构",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "background": "Redis Cluster 是官方的分布式方案，通过 hash slot 将数据分布到多个节点上，支持自动分片和故障转移。16384 个 slot 的设计以及在线迁移机制是 Cluster 面试的核心考点。",
+    "answerPoints": [
+      "Redis Cluster 将整个数据空间划分为 16384 个 hash slot，每个 key 通过 CRC16(key) % 16384 计算映射到对应的 slot。每个主节点负责一部分 slot（例如 3 个主节点：节点 A 负责 0-5460，节点 B 负责 5461-10922，节点 C 负责 10923-16383）。",
+      "为什么选 16384 而非更大的数？Antirez（Redis 作者）解释：Cluster 节点间的心跳包用 bitmap 标记每个 slot 的归属，16384 个 slot 需要 16384/8 = 2KB 的 bitmap，保证心跳包不会过大。而 65536 个 slot 需要 8KB bitmap，在高频心跳下会浪费带宽。16384 对 1000 节点以内的集群完全够用。",
+      "Slot 迁移是在线进行的，不需要停机。迁移流程：① 在目标节点执行 CLUSTER SETSLOT slot IMPORTING source_id；② 在源节点执行 CLUSTER SETSLOT slot MIGRATING target_id；③ 逐个 key 使用 MIGRATE 命令从源节点原子迁移到目标节点；④ 完成后在所有节点执行 CLUSTER SETSLOT slot NODE target_id 确认迁移。",
+      "迁移期间的请求处理：客户端访问源节点上正在迁移的 slot 时，如果 key 还在源节点则正常响应；如果 key 已迁移到目标节点则返回 ASK 重定向，告诉客户端临时去目标节点查找。这保证了迁移过程中数据的可访问性。",
+      "MIGRATE 命令是同步阻塞的：它在源节点序列化 key、通过网络发送到目标节点、等待目标节点确认后删除源端数据。如果迁移一个大 key（如 100MB 的 hash），MIGRATE 会阻塞源节点的主线程数百毫秒甚至数秒——这是大 key 迁移的「隐形炸弹」。"
+    ],
+    "followUp": [
+      "如何做到对客户端透明的 slot 迁移？（答：Smart Client 如 JedisCluster/go-redis 维护本地 slot 映射缓存并自动处理重定向；或使用 redis-cluster-proxy 在代理层透明处理）",
+      "为什么不用一致性哈希而是用固定 slot？（答：固定 slot 使得迁移粒度可控——可以精确迁移指定 slot 而不影响其他数据；一致性哈希在节点增删时数据迁移范围不确定，不利于运维）"
+    ]
+  },
+  {
+    "id": "R4-05",
+    "title": "Cluster 的 Gossip 协议——节点间如何感知彼此状态",
+    "category": "高可用架构",
+    "categoryId": 4,
+    "level": "L3",
+    "background": "Gossip 协议是 Redis Cluster 节点间通信和故障检测的核心机制。它是一种去中心化的信息传播协议，通过节点间的「闲聊」实现集群状态的最终一致性。理解 Gossip 的运作原理有助于调优集群参数和排查网络问题。",
+    "answerPoints": [
+      "Cluster 节点间通过独立的集群总线端口（客户端端口 + 10000，例如 6379 → 16379）使用 Gossip 协议通信。主要消息类型包括：PING（探测存活 + 携带状态信息）、PONG（回复 PING）、MEET（引入新节点加入集群）、FAIL（广播节点故障）。",
+      "每次 PING/PONG 消息不仅包含发送者自身的状态信息，还会随机选取集群中其他节点的信息一并携带（部分状态传播）。这种「我告诉你我知道的关于别人的信息」的机制让状态信息像流言一样在集群中扩散，最终所有节点都能知道整个集群的状态。",
+      "故障检测两阶段：① PFAIL（疑似故障）：节点 A 在 cluster-node-timeout（默认 15000ms）内未收到节点 B 的 PONG 回复，则 A 将 B 标记为 PFAIL。PFAIL 信息会通过后续的 PING 消息传播给其他节点。② FAIL（确认故障）：当超过半数的主节点在 cluster-node-timeout × 2 时间窗口内都将 B 标记为 PFAIL，则 B 进入 FAIL 状态，触发 FAIL 消息广播和自动 failover。",
+      "Gossip 的优势：完全去中心化不依赖中心协调者、网络开销 O(N) 可控（每次 PING 只携带少量节点信息而非全部）、天然容忍网络分区和节点宕机。劣势：状态收敛有延迟（最终一致性而非强一致），集群规模越大收敛越慢。",
+      "PING 频率控制：每个节点每秒会选择少量节点发送 PING（不是给所有节点），优先选择最长时间未通信的节点。cluster-node-timeout 越小 PING 频率越高，故障发现越快但网络开销越大。"
+    ],
+    "followUp": [
+      "cluster-node-timeout 设太小或太大分别有什么影响？（答：太小会增加网络流量且容易误判 PFAIL/FAIL；太大会延迟故障发现，failover 时间拉长。一般建议 10-15 秒）",
+      "网络分区（partition）时 Cluster 如何表现？（答：少数派分区中的主节点无法获得半数以上主节点的支持会停止服务；多数派分区中被隔离主节点的从节点会被提升为新主继续服务。cluster-require-full-coverage 控制是否要求所有 slot 都有主节点才提供服务）"
+    ]
+  },
+  {
+    "id": "R4-06",
+    "title": "脑裂(split-brain)问题——min-slaves-to-write 如何防止数据丢失",
+    "category": "高可用架构",
+    "categoryId": 4,
+    "level": "L3",
+    "background": "脑裂是分布式系统中最棘手的问题之一：网络分区导致系统中同时出现两个「自认为是主节点」的节点，各自接受写入，分区恢复后数据冲突不可调和。Redis 的异步复制使得这个问题尤为危险。",
+    "answerPoints": [
+      "脑裂典型场景：网络分区将主节点与 Sentinel 集群和从节点隔离到不同的网络分区。Sentinel 集群检测到主节点下线后选举出新主节点，但被隔离的旧主节点仍在正常运行且继续接受客户端写入。此时集群中同时存在两个主节点各自写入不同的数据。",
+      "分区恢复后的数据丢失：当网络分区恢复时，旧主节点发现集群中已有新主节点，会自动降级为从节点并执行全量同步——其在隔离期间独立接受的所有写入数据将被新主节点的数据完全覆盖，永久丢失且不可恢复。",
+      "min-replicas-to-write（旧名 min-slaves-to-write）防御机制：主节点在执行写操作前检查当前是否有至少 N 个从节点在线（ACK 延迟不超过 min-replicas-max-lag 秒），如果不满足条件则拒绝写入并返回错误。被隔离的旧主节点因无法联系到任何从节点，自动拒绝写入。",
+      "推荐配置示例：min-replicas-to-write 1 + min-replicas-max-lag 10，含义是「至少 1 个从节点在 10 秒内有 ACK 回复，否则主节点拒绝写入」。脑裂时被隔离的旧主节点检测到没有从节点在线，10 秒后自动进入只读模式，最多丢失 10 秒数据。",
+      "CAP 权衡：这个方案本质上是牺牲可用性（A）来保证一致性（C）。如果所有从节点都宕机了，即使主节点本身健康也无法写入。这是一个明确的设计取舍：宁可短暂不可写，也不接受脑裂导致的数据永久丢失。"
+    ],
+    "followUp": [
+      "这个方案能完全避免数据丢失吗？（答：不能。min-replicas-max-lag 时间窗口内的写入仍可能丢失——在主节点检测到从节点离线之前的那几秒写入无法防护。Redis 的异步复制本质上不保证强一致性）",
+      "和 Raft/Paxos 相比 Redis 的一致性保证有多弱？（答：Raft/Paxos 要求多数派确认后才返回写成功，保证线性一致性。Redis 是异步复制 + 最终一致性，写入只需主节点确认即返回，从节点可能永远收不到该写入。min-replicas-to-write 只是近似模拟而非真正的多数派写入）"
+    ]
+  },
+  {
+    "id": "R4-07",
+    "title": "Redis Cluster 的 MOVED 与 ASK 重定向——区别与处理策略",
+    "category": "高可用架构",
+    "categoryId": 4,
+    "level": "L2",
+    "background": "Redis Cluster 中客户端可能将请求发送到错误的节点（因为 slot 已迁移或正在迁移），此时节点会返回重定向指令。MOVED 和 ASK 是两种语义完全不同的重定向，正确处理它们是实现 Cluster 客户端的关键。",
+    "answerPoints": [
+      "MOVED 重定向表示 slot 已永久迁移到其他节点。格式：MOVED slot ip:port。客户端收到 MOVED 后应该更新本地的 slot → node 映射表（slot table），后续对该 slot 的所有请求直接发送到新节点，不再经过旧节点。",
+      "ASK 重定向表示 slot 正在迁移中，当前请求的 key 已经迁移到目标节点但 slot 迁移尚未完成。格式：ASK slot ip:port。客户端收到 ASK 后应该：先向目标节点发送 ASKING 命令（告知目标节点接受这个 IMPORTING 状态的 slot 请求），然后再发送实际命令。关键区别：不更新本地 slot 映射表。",
+      "为什么 ASK 不更新映射？因为 slot 迁移可能失败或回滚。如果客户端过早更新映射，迁移回滚后所有请求都会发到错误节点。ASK 是「这一次去那边问」的临时重定向，MOVED 是「以后都去那边」的永久重定向。",
+      "Smart Client（如 JedisCluster、go-redis、ioredis）的处理策略：启动时通过 CLUSTER SLOTS 或 CLUSTER NODES 命令获取完整的 slot 映射表并缓存在本地。收到 MOVED 时刷新整个 slot table（因为集群拓扑可能发生了多处变化）。收到 ASK 时仅对本次请求做重定向，不影响缓存。",
+      "性能影响：MOVED 重定向在正常运行中很少发生（只在 slot 迁移完成或 failover 后），第一次重定向有额外 roundtrip 但后续请求直接命中正确节点。ASK 在 slot 迁移期间可能频繁发生，每次需要额外一次 ASKING + 命令的往返。"
+    ],
+    "followUp": [
+      "如果客户端不支持 Cluster 协议（如老版本客户端）怎么办？（答：使用 redis-cluster-proxy 在代理层透明处理重定向和 slot 路由，客户端像连接单机 Redis 一样使用）",
+      "MOVED 重定向会导致性能下降吗？（答：短暂的——第一次重定向有一次额外 roundtrip，但客户端更新 slot table 后后续请求直接命中正确节点，性能恢复正常。频繁 MOVED 说明集群拓扑不稳定需要排查原因）"
+    ]
+  },
+  {
+    "id": "R4-08",
+    "title": "Hash Tag 与多 key 操作的 slot 约束——{user}:profile 的设计意图",
+    "category": "高可用架构",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "background": "Redis Cluster 模式下，MGET、事务（MULTI/EXEC）、Lua 脚本等多 key 操作要求所有涉及的 key 必须在同一个 slot 中。Hash Tag 是 Cluster 提供的机制来满足这一约束，但使用不当会导致严重的数据倾斜。",
+    "answerPoints": [
+      "Hash Tag 机制：Redis Cluster 在计算 key 的 slot 时，如果 key 中包含 {}，则只对第一对 {} 内的内容做 CRC16 哈希。例如 user:{1000}:profile 和 user:{1000}:orders 只哈希 \"1000\"，因此一定会分配到同一个 slot，使得可以在一个 MGET 或事务中同时操作这两个 key。",
+      "边界情况处理：如果 key 中没有 {} 或 {} 为空（如 user::profile 或 {}:data），则对整个 key 做 CRC16 哈希，即退化为默认行为。如果有多对 {} 如 {a}:{b}，只取第一对即对 \"a\" 哈希。",
+      "Hash Tag 使得 Cluster 模式下以下操作成为可能：MGET/MSET 批量读写相关 key、MULTI/EXEC 事务保证原子性、Lua 脚本操作多个 key（EVAL 命令要求所有 KEYS 参数在同一 slot）。没有 Hash Tag 时这些跨 slot 操作会返回 CROSSSLOT 错误。",
+      "数据倾斜风险：如果大量 key 使用相同的 Hash Tag（例如一个大客户的所有数据都用 {bigcustomer} 作为 Tag），这些 key 会集中在同一个 slot 和同一个节点上，造成该节点的内存和 QPS 远高于其他节点。这是 Hash Tag 最大的陷阱。",
+      "最佳实践：按业务实体维度设计 Hash Tag，例如用用户 ID {uid:1000} 保证同一用户的相关 key 同 slot。不同用户的 key 因为 ID 不同会自然分散到不同 slot。避免使用固定字符串（如 {global}）作为 Tag，确保 Tag 值有足够的基数（cardinality）保证数据均匀分布。"
+    ],
+    "followUp": [
+      "如果不用 Hash Tag，MGET 跨 slot 会怎样？（答：Redis 返回 (error) CROSSSLOT Keys in request don't hash to the same slot 错误。客户端需要自行拆分请求按 slot 分组并行发送再合并结果，这也是 Smart Client 的 pipeline 优化策略之一）",
+      "如何检测 slot 是否有数据倾斜？（答：使用 CLUSTER COUNTKEYSINSLOT slot 命令检查各 slot 的 key 数量；或通过 redis-cli --cluster info 查看各节点的 key 分布；生产中建议监控各节点的内存使用量和 QPS 偏差比）"
+    ]
+  }
+]

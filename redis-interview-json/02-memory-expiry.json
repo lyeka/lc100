@@ -1,0 +1,134 @@
+[
+  {
+    "id": "R2-01",
+    "title": "过期键删除：惰性删除与定期删除的协作机制",
+    "category": "过期策略与内存管理",
+    "categoryId": 2,
+    "level": "L2",
+    "background": "「Redis 过期 key 是怎么删除的？」是 Redis 面试中最基础也最高频的问题之一。很多候选人只能说出惰性删除，忘记定期删除，更不清楚两者如何协作。",
+    "answerPoints": [
+      "惰性删除（lazy expiration）：只有在客户端访问某个 key 时才检查它是否已过期，如果过期则删除并返回 nil。这种策略对 CPU 非常友好（不需要后台扫描），但存在严重的内存泄漏风险——如果大量 key 过期后再也没有被访问，它们会永远占据内存直到 OOM。",
+      "定期删除（active expiration）：Redis 每秒执行 hz 次（默认 10 次，即每 100ms 一次）主动过期扫描。每次从 expires 字典中随机抽样 20 个 key，删除其中已过期的。如果过期比例超过 25%，说明可能还有大量过期 key，立即再抽样一轮继续删除，循环直到过期比例降到 25% 以下或单次耗时超过 25ms 为止。这保证了清理速度和延迟之间的平衡。",
+      "过期信息的存储：Redis 在主字典（db->dict）之外维护一个独立的过期字典（db->expires），key 是指向主字典 key 的指针（共享指针，不重复占内存），value 是过期时间戳（毫秒级 Unix 时间）。设置 EXPIRE/PEXPIRE 时写入过期字典，PERSIST 时从过期字典删除。",
+      "生产环境的关键陷阱：大量 key 设置了相同的过期时间会导致同一时刻集中过期，定期删除的循环扫描可能在短时间内阻塞主线程导致延迟抖动。解决方案是给过期时间加一个随机偏移（如 EXPIRE key (3600 + random(0,300))），将过期时间打散到一个时间窗口内。"
+    ],
+    "codeExample": {
+      "code": "# 设置过期时间\nSET session:user123 '{\"name\":\"Alice\"}'\nEXPIRE session:user123 3600          # 3600 秒后过期\n\n# 查看剩余生存时间\nTTL session:user123                   # 返回秒级剩余时间\nPTTL session:user123                  # 返回毫秒级剩余时间\n\n# 移除过期时间（key 变为永不过期）\nPERSIST session:user123\n\n# 设置带过期时间的 key（原子操作，推荐）\nSET session:user456 '{\"name\":\"Bob\"}' EX 3600",
+      "language": "redis",
+      "explanation": "推荐使用 SET key value EX seconds 原子设置值和过期时间，避免 SET + EXPIRE 两步操作之间进程崩溃导致 key 永不过期。"
+    },
+    "followUp": [
+      "从节点（slave）是否主动删除过期 key？（答：不会。从节点不独立判断过期，而是等主节点删除后同步 DEL 命令过来。这保证主从数据一致性，但在网络延迟时从节点可能返回已过期的 key——Redis 3.2+ 修复了这个问题，从节点读取时也会检查过期但不删除只返回 nil）",
+      "过期 key 的内存什么时候才真正释放？（答：删除 key 后 Redis 调用内存分配器的 free，但操作系统不一定立即回收——jemalloc 会将内存保留在 arena 中复用，RSS 可能不会立即下降）"
+    ]
+  },
+  {
+    "id": "R2-02",
+    "title": "jemalloc 内存分配器——Redis 为什么选择它而非 glibc malloc",
+    "category": "过期策略与内存管理",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "background": "Redis 的内存效率很大程度上取决于底层内存分配器的选择。理解 jemalloc 的工作原理有助于诊断 Redis 内存碎片问题和优化内存使用。",
+    "answerPoints": [
+      "Redis 编译时支持三种内存分配器：jemalloc（默认，make 时自动编译随 Redis 一起分发）、tcmalloc（Google 出品）和 libc malloc（glibc 默认的 ptmalloc2）。选择 jemalloc 作为默认分配器是因为它在 Redis 典型的小对象密集分配场景下碎片率最低、性能最稳定。",
+      "jemalloc 按 size class 分配内存（8/16/32/48/64/...字节），每个 size class 对应一组预分配的内存块（slab），同一 size class 的分配请求从对应的 slab 中取。这种设计减少外部碎片（不会出现大量不同大小的小空洞），但可能有少量内部碎片（申请 33 字节分配 48 字节，浪费 15 字节）。",
+      "jemalloc 使用 arena + thread cache 两级结构降低多线程竞争。虽然 Redis 主线程是单线程模型，但 6.0+ 的 IO 多线程、后台 BIO 线程（fsync、lazy free、AOF 重写）也会分配内存，arena 机制避免这些线程争抢同一把锁。",
+      "通过 INFO memory 命令可以监控内存碎片情况：mem_fragmentation_ratio = used_memory_rss / used_memory。比值大于 1.0 是正常的（分配器和 OS 的额外开销），1.0-1.5 是健康范围，超过 1.5 说明碎片严重需要干预。比值小于 1.0 表示 Redis 使用了 swap 分区，这是非常危险的信号——swap 会导致延迟从微秒级飙升到毫秒级甚至秒级。"
+    ],
+    "followUp": [
+      "如何在线查看 Redis 使用的是哪个分配器？（答：INFO memory 中的 mem_allocator 字段会显示当前使用的分配器和版本，如 jemalloc-5.3.0）",
+      "tcmalloc 相比 jemalloc 有什么优势？（答：tcmalloc 的 thread cache 更激进，在高并发多线程场景下吞吐量可能更高，但在 Redis 的单线程主循环场景下优势不明显。某些特定内存分配模式下 tcmalloc 碎片率可能更低）"
+    ]
+  },
+  {
+    "id": "R2-03",
+    "title": "内存碎片率与 activedefrag 在线整理",
+    "category": "过期策略与内存管理",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "background": "长时间运行的 Redis 实例由于频繁创建和删除不同大小的 key，内存碎片率会逐渐升高。Redis 4.0 引入了 activedefrag 在线碎片整理功能，避免重启实例。",
+    "answerPoints": [
+      "内存碎片的产生原因：Redis 频繁创建和删除不同大小的 key 时，内存分配器释放的空间可能因为大小不匹配而无法被新的分配请求复用，形成大量碎片化的小空洞。典型场景是先写入大量大 value 再删除后写入小 value，或者对 String 做频繁的 APPEND 操作导致反复 realloc。",
+      "activedefrag 是 Redis 4.0+ 基于 jemalloc 的 je_malloc_dallocx() 接口实现的在线碎片整理。工作原理是扫描 Redis 的 key 空间，将数据从碎片化的内存位置拷贝到新的连续内存区域，然后释放旧内存。整理过程在主线程中以增量方式执行（每个事件循环周期处理一小批），不会一次性阻塞。",
+      "关键配置参数：active-defrag-enabled yes（启用开关）；active-defrag-ignore-bytes 100mb（碎片绝对值低于此阈值不触发整理）；active-defrag-threshold-lower 10（碎片率百分比低于此值不触发，即碎片率 < 10% 不整理）；active-defrag-threshold-upper 100（碎片率超过此值使用最大 CPU 资源整理）；active-defrag-cycle-min 1 和 active-defrag-cycle-max 25（控制整理占 CPU 时间的百分比范围，默认 1%-25%）。",
+      "替代方案是重启 Redis 从 RDB 恢复：RDB 加载时数据重新紧凑排列，碎片率会降到接近 1.0。但重启意味着服务中断（即使有主从切换也有短暂的可用性风险），activedefrag 的价值在于无需重启就能在线整理碎片，适合对可用性要求极高的场景。"
+    ],
+    "followUp": [
+      "activedefrag 对延迟有多大影响？生产环境是否建议开启？（答：cycle-min 设为 1% 时对延迟影响很小（通常 < 1ms），但碎片严重时 cycle 会升高。建议在碎片率持续 > 1.5 的实例上开启，同时监控 latency）",
+      "碎片率为什么有时会小于 1？（答：mem_fragmentation_ratio < 1 表示 used_memory > used_memory_rss，说明 Redis 使用了 swap 交换分区，物理内存不够了。这是紧急告警信号，swap 上的 Redis 性能会灾难性下降）"
+    ]
+  },
+  {
+    "id": "R2-04",
+    "title": "maxmemory 与八种淘汰策略——LRU 与 LFU 在 Redis 中的近似实现",
+    "category": "过期策略与内存管理",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "background": "当 Redis 内存使用达到 maxmemory 限制时如何选择淘汰哪些 key，是 Redis 架构师必须掌握的核心知识。Redis 提供了 8 种淘汰策略，且 LRU/LFU 都是近似实现而非精确算法。",
+    "answerPoints": [
+      "八种淘汰策略分为三组：不淘汰（noeviction，默认，内存满时写入命令返回 OOM 错误但读取正常）；allkeys 系列（从所有 key 中淘汰：allkeys-lru、allkeys-lfu、allkeys-random）；volatile 系列（只从设置了过期时间的 key 中淘汰：volatile-lru、volatile-lfu、volatile-random、volatile-ttl 按剩余 TTL 最短优先淘汰）。",
+      "Redis 的 LRU 不是精确 LRU（精确 LRU 需要维护全局双向链表，每次访问都要移动节点，每个对象额外增加 16 字节的 prev/next 指针，百万级 key 的内存开销不可接受）。Redis 使用近似 LRU：每次淘汰时随机采样 maxmemory-samples 个 key（默认 5），从中选出最久未访问的淘汰。同时维护一个 16 元素的淘汰候选池（eviction pool），新采样的 key 如果比池中最年轻的 key 更旧则入池，淘汰池中最旧的 key。",
+      "LFU（Least Frequently Used，Redis 4.0+）复用 redisObject 的 24 位 lru 字段，拆分为两部分：高 16 位存储上次衰减时间（分钟精度的 Unix 时间戳，约 45 天循环），低 8 位存储对数频率计数器（Morris counter，概率递增，最大值 255 约代表 100 万次访问）。每次访问时计数器以概率 1/(old_count * lfu_log_factor + 1) 递增，因此访问越频繁增长越慢，避免热点 key 独占高计数。",
+      "LFU 的计数器衰减机制：每次访问时检查距上次衰减过了多少分钟（elapsed），将计数器减去 elapsed / lfu-decay-time（默认 1，即每分钟衰减 1）。衰减确保了「历史上的热 key 但最近不热了」不会长期霸占高频计数，让最近活跃度低的 key 能被正确淘汰。LFU 在有明显冷热分离的业务场景下比 LRU 效果更好。"
+    ],
+    "followUp": [
+      "为什么 Redis 不实现精确 LRU？（答：精确 LRU 需要双向链表，每次访问移动节点，每个对象额外 16 字节指针开销，百万级 key 浪费数十 MB 内存。近似 LRU 在 maxmemory-samples=10 时已经非常接近精确 LRU 的效果）",
+      "实际生产中用 allkeys-lru 还是 volatile-lru？（答：如果所有 key 都设置了过期时间用 volatile-lru，如果混合了持久 key 和临时 key 也用 volatile-lru（避免误淘汰持久 key），如果所有 key 都是缓存且可重建用 allkeys-lru）"
+    ]
+  },
+  {
+    "id": "R2-05",
+    "title": "对象共享池与内存编码优化——小对象的极致压缩",
+    "category": "过期策略与内存管理",
+    "categoryId": 2,
+    "level": "L2",
+    "background": "Redis 对小整数和小字符串有专门的内存优化机制。理解这些优化有助于在业务设计中选择合适的数据格式以最大化 Redis 的内存效率。",
+    "answerPoints": [
+      "Redis 在启动时预创建 0-9999 共 10000 个整数对象的共享池。当执行 SET foo 100 时，foo 的 value 不会新建一个 redisObject，而是直接指向共享池中的整数对象 100（引用计数 refcount + 1）。这意味着多个 key 存储相同的小整数值时只占用一份内存，对大量使用计数器、标志位等小整数值的业务场景有显著的内存节省效果。",
+      "共享池有一个重要限制：开启 maxmemory 并配合 LRU 或 LFU 淘汰策略时，共享对象池会失效。原因是共享对象被多个 key 引用，无法为每个 key 独立记录 LRU 时间戳或 LFU 频率计数——如果共享，淘汰时无法判断哪个 key 最近被访问过。这是共享与个性化跟踪之间的根本矛盾。",
+      "embstr 编码是 String 类型的极致内存优化：redisObject（16 字节）和 SDS 紧邻在一块连续内存中，一次 malloc 分配。jemalloc 的 64 字节 size class 是最常用的小内存块，64 - 16（redisObject）- 3（sdshdr8 头部）- 1（'\\0' 终止符）= 44 字节，因此 ≤ 44 字节的字符串用 embstr 编码，只需一次内存分配和一次 free，且连续内存布局对 CPU 缓存更友好。",
+      "诊断命令系列：OBJECT ENCODING key 查看底层编码类型（如 embstr/int/raw/ziplist/skiplist 等），OBJECT REFCOUNT key 查看引用计数（共享池中的对象 refcount > 1），OBJECT IDLETIME key 查看 LRU 空闲时间（秒），OBJECT FREQ key 查看 LFU 访问频率计数（需开启 LFU 策略），OBJECT HELP 列出所有子命令。这些命令是生产环境排查内存问题的利器。"
+    ],
+    "followUp": [
+      "为什么共享池只到 9999 而不是更大？（答：共享池的整数范围是编译时常量 OBJ_SHARED_INTEGERS=10000。更大的范围意味着启动时创建更多对象占用更多内存，且超过 10000 的整数出现频率显著降低，收益递减）",
+      "浮点数在 Redis 中是什么编码？（答：Redis 内部不用 float/double 存储浮点数，而是转为字符串存储。3.14 存为 embstr 编码的字符串 \"3.14\"，INCRBYFLOAT 操作时临时转为 long double 计算后再转回字符串）"
+    ]
+  },
+  {
+    "id": "R2-06",
+    "title": "大内存实例的 copy-on-write 代价——fork 带来的隐形延迟",
+    "category": "过期策略与内存管理",
+    "categoryId": 2,
+    "level": "L3",
+    "background": "BGSAVE、BGREWRITEAOF 以及主从全量同步都依赖 fork() 系统调用创建子进程。对于大内存 Redis 实例，fork 的代价远超很多人的想象，是生产环境延迟抖动的常见根因。",
+    "answerPoints": [
+      "fork() 在 Linux 上使用 COW（Copy-On-Write）机制：子进程与父进程共享全部物理内存页，只有当某一方修改某个内存页时操作系统才会复制该页（4KB 一页）。fork 本身的耗时主要在于复制页表（page table，记录虚拟地址到物理地址的映射），每 GB 内存大约需要 10-20ms（取决于硬件和内核版本），一个 64GB 的 Redis 实例 fork 可能需要 600ms-1s 以上。",
+      "Transparent Huge Pages（THP）会严重放大 COW 代价：THP 启用时操作系统使用 2MB 的大页而非 4KB 的标准页。COW 以页为单位复制，即使只修改了 1 字节也要复制整个 2MB 页，导致 fork 后的内存复制量膨胀 512 倍。Redis 官方强烈建议关闭 THP（echo never > /sys/kernel/mm/transparent_hugepage/enabled）。",
+      "fork 后如果父进程写入密集（客户端有大量写命令），COW 会导致大量内存页被复制，最坏情况下（所有页都被修改）内存占用翻倍。因此生产环境必须预留足够物理内存——至少 used_memory 的 1.5 倍（保守建议 2 倍），否则 fork 后触发 swap 或 OOM killer 将是灾难性后果。",
+      "fork 调用本身会完全阻塞 Redis 主线程：fork 期间不处理任何客户端请求。可以通过 INFO 的 latest_fork_usec 字段监控最近一次 fork 耗时。大实例的最佳实践是拆分为多个小实例（每个 10-20GB）、在从节点上执行 BGSAVE、选择低峰期执行 RDB 持久化，或者使用 AOF 的 everysec 策略减少 fork 频率。"
+    ],
+    "followUp": [
+      "为什么 Redis 建议关闭 THP？（答：THP 的 2MB 大页使 COW 复制粒度从 4KB 变为 2MB，fork 后父进程每写一个字节就要复制 2MB 内存页，导致内存使用量暴涨且 fork 耗时显著增加）",
+      "fork 延迟对客户端的影响：fork 期间 Redis 完全阻塞还是部分阻塞？（答：fork() 系统调用本身是同步的，在 fork 返回之前主线程完全阻塞，不处理任何请求。fork 完成后主线程立即恢复，子进程在后台执行 RDB/AOF 持久化不影响主线程）"
+    ]
+  },
+  {
+    "id": "R2-07",
+    "title": "Redis 与 Memcached 的本质差异——不只是数据结构多少的问题",
+    "category": "过期策略与内存管理",
+    "categoryId": 2,
+    "level": "L2",
+    "background": "「Redis 和 Memcached 有什么区别？」是经典对比题。大多数候选人只能说出「Redis 有更多数据结构」，但真正的差异远不止于此。这道题考察的是对两者设计哲学和架构选型的深层理解。",
+    "answerPoints": [
+      "数据结构差异只是表象，本质区别是 Redis 的数据结构支持服务端原子操作。Memcached 只有 String（KV），实现一个排行榜需要客户端取全量数据→本地排序→写回，多次网络往返且无法保证原子性。Redis 的 ZSet 直接 ZADD/ZRANGE 在服务端完成，一次网络往返、天然原子、无并发冲突。这不是「多几种数据结构」的问题，而是计算模型的根本转变——从「数据搬到计算」变为「计算贴近数据」。",
+      "线程模型：Memcached 使用多线程模型（主线程 accept 连接 + 多个 worker 线程处理请求），能充分利用多核 CPU，在纯 KV 缓存的高并发场景下吞吐量可能更高。Redis 核心处理逻辑是单线程（避免锁竞争和上下文切换），6.0 后引入 IO 多线程仅处理网络读写和协议解析，命令执行仍是单线程。各有优劣。",
+      "持久化与数据安全：Memcached 是纯内存缓存，进程重启数据全部丢失。Redis 提供 RDB（快照）和 AOF（追加日志）两种持久化方式，可以在重启后恢复数据。这决定了 Redis 不仅可以做缓存，还可以做消息队列、分布式锁、会话存储等需要数据持久性的场景。",
+      "内存管理差异：Memcached 使用 Slab Allocation 预分配固定大小的 chunk（chunk class: 80/96/120/...字节），每个 KV 分配到最接近的 chunk class 中。优点是几乎无碎片，缺点是可能浪费空间（100 字节的 value 分配到 120 字节 chunk 浪费 20 字节）且不同 chunk class 之间的内存不能互借。Redis 用 jemalloc 更灵活，按需分配。",
+      "集群方案：Memcached 没有原生集群，依赖客户端一致性哈希（ketama 算法）分片，节点增减时需要客户端感知和迁移。Redis 提供原生 Cluster 方案，16384 个哈希槽自动分配，支持在线扩缩容和故障自动转移，运维复杂度更低。"
+    ],
+    "followUp": [
+      "什么场景下 Memcached 比 Redis 更合适？（答：纯 KV 缓存 + 超高并发 + 简单读写场景，Memcached 的多线程模型可以更好地利用多核 CPU，且内存效率在固定大小 value 场景下可能更优。大型 Web 应用的 session 缓存、页面片段缓存等场景 Memcached 仍被广泛使用）",
+      "Redis 能完全替代 Memcached 吗？（答：功能上可以，但性能上不一定。在纯 KV 缓存的极端高并发场景下，Memcached 的多线程吞吐量可能优于 Redis 单线程。且 Memcached 更简单更轻量，不需要持久化和复杂数据结构时没必要引入 Redis 的额外复杂度）"
+    ]
+  }
+]

@@ -1,0 +1,126 @@
+[
+  {
+    "id": "R3-01",
+    "title": "RDB 快照的 fork + COW 机制——子进程写磁盘时父进程还能写吗",
+    "category": "持久化机制",
+    "categoryId": 3,
+    "level": "L2",
+    "background": "RDB 是 Redis 默认的持久化方式，通过生成某一时刻的内存快照保存到磁盘。BGSAVE 的 fork + COW 机制是面试高频考点，考察候选人对操作系统进程模型和内存管理的理解深度。",
+    "answerPoints": [
+      "BGSAVE 命令触发 fork() 系统调用创建子进程，子进程与父进程共享同一块物理内存。fork 之后子进程拥有父进程的完整内存映射副本（页表拷贝），但不会立刻复制实际数据页——这就是 Copy-On-Write 的核心思想。",
+      "子进程遍历整个内存数据集，将所有键值对按 RDB 二进制格式（包含类型标记、编码方式、过期时间、键值数据）序列化写入临时文件，完成后原子替换旧 RDB 文件。RDB 文件格式紧凑，非常适合备份传输和灾难恢复。",
+      "父进程在子进程执行期间继续正常处理客户端请求。当父进程执行写操作修改某个内存页时，操作系统触发缺页中断（page fault），将该页复制一份给父进程修改，子进程仍然读取原始未修改的页——这保证了快照的时间点一致性。",
+      "COW 机制意味着只有被修改的内存页才会被复制，如果 BGSAVE 期间写入量不大，实际内存开销远小于「翻倍」。但在写入密集的场景下，最坏情况下内存占用可能接近原始数据的两倍。",
+      "SAVE 命令是同步版本：直接在主线程中生成 RDB 文件，期间阻塞所有客户端请求，生产环境绝对禁用。BGSAVE 是唯一推荐的 RDB 持久化触发方式。",
+      "RDB 的优点：文件紧凑体积小、恢复速度极快（直接加载二进制到内存）、适合定期备份和异地灾备。缺点：非实时持久化，如果 Redis 在两次 BGSAVE 之间宕机，会丢失最后一次快照到宕机时刻之间的所有写入数据。"
+    ],
+    "codeExample": {
+      "code": "# redis.conf 自动触发 BGSAVE 条件（满足任一即触发）\nsave 900 1        # 900 秒内至少 1 次写入\nsave 300 10       # 300 秒内至少 10 次写入\nsave 60 10000     # 60 秒内至少 10000 次写入\n\n# 手动触发\nBGSAVE            # 后台异步生成 RDB（推荐）\nSAVE              # 前台阻塞生成 RDB（生产禁用）\n\n# 查看上次 BGSAVE 状态\nINFO persistence\n# rdb_last_bgsave_status:ok\n# rdb_last_bgsave_time_sec:2",
+      "language": "redis",
+      "explanation": "save 配置项定义自动触发 BGSAVE 的条件，多个条件是 OR 关系。BGSAVE 在后台 fork 子进程执行，不阻塞主线程。"
+    },
+    "followUp": [
+      "RDB 文件的格式是什么？能手动解析吗？（答：RDB 是二进制格式，以 REDIS 魔数开头，包含版本号、数据库选择、KV 数据、EOF 标记和 CRC64 校验。可用 redis-rdb-tools 等开源工具解析）",
+      "BGSAVE 执行期间能再触发 BGSAVE 吗？（答：不能，Redis 会拒绝并返回错误，同一时刻只允许一个 BGSAVE 子进程存在）"
+    ]
+  },
+  {
+    "id": "R3-02",
+    "title": "AOF 三种 fsync 策略的取舍——always/everysec/no 各丢多少数据",
+    "category": "持久化机制",
+    "categoryId": 3,
+    "level": "L2",
+    "background": "AOF（Append Only File）以追加写的方式记录每个写命令，是 Redis 实现接近实时持久化的核心手段。三种 fsync 策略在数据安全性和写入性能之间做出不同取舍，是持久化面试的必考点。",
+    "answerPoints": [
+      "AOF 的工作原理：每个写命令执行后先写入内存中的 aof_buf 缓冲区，然后根据 fsync 策略决定何时将缓冲区数据刷盘（fsync 系统调用确保数据真正落盘而非停留在 OS 缓存）。",
+      "always 策略：每个写命令执行完毕后立刻调用 fsync 将 aof_buf 刷盘。数据安全性最高，最多丢失一个写命令的数据，但每次写操作都产生一次磁盘 IO，性能最差，吞吐量可能下降一个数量级。",
+      "everysec 策略（默认推荐）：每秒由后台线程执行一次 fsync 刷盘。在数据安全性和性能之间取得最佳平衡，最多丢失约 1 秒的写入数据，写入性能接近不开持久化的水平。这是绝大多数生产环境的首选。",
+      "no 策略：Redis 不主动调用 fsync，完全由操作系统决定何时将文件缓存刷盘（Linux 通常 30 秒左右）。写入性能最好，但 OS 崩溃时可能丢失几十秒的数据，风险最高。",
+      "AOF 文件是 RESP 协议的纯文本格式，人类可读可编辑。例如 SET key value 在 AOF 中记录为 *3\\r\\n$3\\r\\nSET\\r\\n$3\\r\\nkey\\r\\n$5\\r\\nvalue。这种可读性在数据恢复和调试时非常有价值。",
+      "AOF 文件会持续增长（同一个 key 被修改 1000 次就有 1000 条记录），必须通过 BGREWRITEAOF 触发重写来压缩体积。redis.conf 中通过 appendonly yes 开启 AOF 持久化。"
+    ],
+    "followUp": [
+      "AOF 文件损坏了怎么办？（答：使用 redis-check-aof --fix 工具修复，它会找到最后一条不完整的命令并截断，丢弃损坏部分之后的数据）",
+      "AOF 的 everysec 真的只丢 1 秒吗？（答：极端情况下如果前一次 fsync 因磁盘 IO 繁忙而阻塞超过 2 秒，Redis 会延迟写入 aof_buf 等待 fsync 完成，此时可能丢失最多 2 秒数据）"
+    ]
+  },
+  {
+    "id": "R3-03",
+    "title": "AOF 重写的实现原理——重写期间新写入的数据如何不丢失",
+    "category": "持久化机制",
+    "categoryId": 3,
+    "level": "L2/L3",
+    "background": "AOF 重写是理解 Redis 持久化的深水区。它不是简单地压缩旧文件，而是根据当前内存状态重新生成最小命令集。重写期间的数据一致性保证是面试区分度很高的知识点。",
+    "answerPoints": [
+      "BGREWRITEAOF 触发 fork 创建子进程，子进程根据当前内存中的数据状态直接生成新的 AOF 文件。它不是分析或压缩旧 AOF 文件，而是将内存中每个 key 的当前值转换为对应的写命令（例如一个被 INCR 了 1000 次的 key 只需一条 SET 命令）。",
+      "重写期间父进程继续正常处理客户端请求。父进程的新写入命令会同时追加到两个地方：① 旧 AOF 文件（保证即使重写中途失败也不丢数据）；② AOF 重写缓冲区（aof_rewrite_buf），用于在重写完成后补齐增量数据。",
+      "子进程完成新 AOF 文件写入后通过管道通知父进程。父进程收到信号后将 aof_rewrite_buf 中积累的增量命令追加到新 AOF 文件末尾——这一步在主线程中执行，会造成短暂阻塞。",
+      "最后父进程使用 rename() 系统调用原子地将新 AOF 文件替换旧 AOF 文件。rename 在同一文件系统上是原子操作，不存在中间状态，保证替换过程的安全性。",
+      "重写后 AOF 体积大幅缩小：多次 INCR 合并为一个 SET、已删除和已过期的 key 不再出现、多次 LPUSH 合并为一条包含所有元素的 RPUSH。这就是「基于内存状态重建」而非「基于日志压缩」的核心优势。",
+      "自动触发条件由两个参数控制：auto-aof-rewrite-percentage 100（当前 AOF 体积比上次重写后增长 100% 时触发）和 auto-aof-rewrite-min-size 64mb（AOF 至少达到 64MB 才考虑触发），两个条件需同时满足。"
+    ],
+    "followUp": [
+      "AOF 重写用的也是 fork，那 COW 的问题和 RDB 一样存在吗？（答：是的，重写期间如果父进程写入量大，COW 会导致额外内存开销，原理与 BGSAVE 完全相同）",
+      "手动触发和自动触发的条件分别是什么？（答：手动用 BGREWRITEAOF 命令；自动由 auto-aof-rewrite-percentage 和 auto-aof-rewrite-min-size 两个参数共同控制）"
+    ]
+  },
+  {
+    "id": "R3-04",
+    "title": "混合持久化(RDB+AOF)——为什么 Redis 4.0 之后这成了最佳实践",
+    "category": "持久化机制",
+    "categoryId": 3,
+    "level": "L2",
+    "background": "混合持久化是 Redis 4.0 引入的特性，巧妙地将 RDB 的快速恢复能力与 AOF 的数据完整性结合在一起，解决了两种方式各自的短板。Redis 5.0 之后默认开启。",
+    "answerPoints": [
+      "通过 aof-use-rdb-preamble yes 开启混合持久化（Redis 5.0+ 默认开启）。开启后 AOF 重写时不再生成纯命令文本，而是将当前内存数据先以 RDB 二进制格式写入新 AOF 文件头部，然后将重写期间的增量写命令以 RESP 文本格式追加在 RDB 数据之后。",
+      "恢复流程：Redis 启动时检测 AOF 文件前缀是否为 REDIS 魔数。如果是混合格式，先加载 RDB 部分（二进制反序列化，速度极快），然后重放后面的增量 AOF 命令（保证数据精确到最后一秒）。整体恢复速度远快于纯 AOF。",
+      "这种设计结合了两者的优势：RDB 部分提供快速恢复（大量数据的反序列化比逐条重放命令快一个数量级），AOF 增量部分保证数据完整性（最多丢失 everysec 策略的 1 秒数据而非 RDB 两次快照之间的所有数据）。",
+      "混合格式的 AOF 文件结构：前半部分是 RDB 二进制数据（以 REDIS 魔数 + 版本号开头），后半部分是标准 RESP 文本命令。文件扩展名仍然是 .aof，但内容不再是纯文本。",
+      "相比纯 RDB 方案数据安全性大幅提升，相比纯 AOF 方案恢复速度大幅提升——这就是为什么它成为 Redis 4.0+ 的最佳实践和默认配置。"
+    ],
+    "followUp": [
+      "混合持久化有什么缺点？（答：AOF 文件不再完全可读，调试和手动编辑困难；老版本 Redis 无法加载混合格式的 AOF 文件，存在版本兼容问题）",
+      "Redis 7.0 的 Multi-part AOF 又做了什么改进？（答：将 AOF 拆分为 base 文件 + 增量文件 + manifest 清单，重写时只替换 base 不需要追加缓冲区到新文件，减少了重写期间的内存和 IO 开销）"
+    ]
+  },
+  {
+    "id": "R3-05",
+    "title": "fork 的隐形代价——大内存实例 RDB/AOF 持久化的延迟炸弹",
+    "category": "持久化机制",
+    "categoryId": 3,
+    "level": "L3",
+    "background": "这是生产环境经常遇到但教程很少深入讨论的性能问题。一个 50GB 的 Redis 实例在 BGSAVE 时可能出现数百毫秒的请求阻塞，足以触发业务超时告警。理解 fork 的代价是 Redis 性能调优的关键。",
+    "answerPoints": [
+      "fork() 系统调用的耗时与 Redis 实例占用的内存量成正比，因为内核需要复制整个进程的页表（page table）。页表大小与虚拟内存页数成正比，内存越大页表越大复制越慢。经验数据：每 GB 内存 fork 约需 10-20ms（取决于硬件和 OS 版本）。",
+      "一个 50GB 的 Redis 实例 fork 可能需要 500ms-1s，而 fork 期间主线程完全阻塞，不处理任何客户端请求——这是最致命的影响。对于延迟敏感的业务（如支付、广告竞价），这种毫秒级别的阻塞是不可接受的。",
+      "THP（Transparent Huge Pages）会严重放大 COW 的代价：Linux 默认启用 2MB 大页，即使父进程只修改了页内 1 个字节，也需要复制整个 2MB 大页（而非标准 4KB 小页）。生产环境必须执行 echo never > /sys/kernel/mm/transparent_hugepage/enabled 关闭 THP。",
+      "关键监控指标：通过 INFO persistence 命令查看 latest_fork_usec（上次 fork 耗时，单位微秒）。如果这个值持续增长或超过业务可接受的延迟阈值，说明需要采取优化措施。",
+      "大实例拆分策略：将一个 64GB 的 Redis 实例拆分为 4 个 16GB 的实例，每个实例独立 fork，单次 fork 耗时降低 4 倍。这是最直接有效的优化手段，也是 Redis Cluster 分片带来的隐性收益之一。",
+      "其他优化手段：使用更快的存储（NVMe SSD 加速 RDB/AOF 写入）、调整持久化触发频率（减少不必要的 BGSAVE）、在低峰期执行手动 BGSAVE、考虑使用 Redis 7.0 的 Multi-part AOF 减少重写时的内存开销。"
+    ],
+    "followUp": [
+      "除了拆分实例，还有什么方法减少 fork 延迟？（答：使用 Linux 的 MADV_HUGEPAGE 替代 THP 精细控制大页、升级内核版本优化 fork 实现、减少 Redis 实例的总内存占用如启用 LFU 淘汰策略）",
+      "阿里云/AWS 的 Redis 服务是如何解决大实例 fork 问题的？（答：阿里云 Tair 使用多线程 + 增量快照替代 fork；AWS ElastiCache 使用优化的 fork 实现并限制单实例最大内存）"
+    ]
+  },
+  {
+    "id": "R3-06",
+    "title": "生产环境持久化方案选型——主节点关 AOF 还是从节点开 AOF",
+    "category": "持久化机制",
+    "categoryId": 3,
+    "level": "L2/L3",
+    "background": "持久化方案选型是架构面试中的典型开放题，没有标准答案。考察的是候选人在数据安全性、写入性能、运维复杂度之间的权衡能力和生产经验。",
+    "answerPoints": [
+      "方案一（推荐方案）：主节点只开 RDB（或完全不开持久化）+ 从节点开 AOF everysec。主节点写性能最大化（没有 fsync 开销），从节点承担持久化的 IO 压力。数据安全由从节点的 AOF 保证，恢复时从从节点的 AOF 文件恢复。",
+      "方案二（高安全方案）：主从节点都开 AOF everysec。数据安全性最高，主从都有完整的持久化数据，但主节点会承受 fsync 的 IO 开销。fsync 系统调用在磁盘 IO 繁忙时可能需要几十毫秒，导致写入延迟抖动。",
+      "关键考量：主节点开 AOF 的 fsync 会产生写入延迟。当磁盘 IO 繁忙（例如 BGREWRITEAOF 重写期间）时，everysec 的 fsync 可能阻塞主线程等待上一次 fsync 完成，这会造成明显的延迟毛刺（latency spike）。",
+      "从节点做持久化的优势是不影响主节点性能，但需要保证：从节点的数据与主节点保持同步（监控复制延迟 master_repl_offset - slave_repl_offset）、从节点能快速提升为主节点（Sentinel 或 Cluster 自动 failover）。",
+      "异地灾备策略：定期将 RDB 文件传输到异地对象存储（S3/OSS/COS），作为最后一道防线。RDB 文件体积小、格式紧凑，非常适合远程传输和长期存档。建议配合 crontab 定时任务自动上传。",
+      "运维监控要点：repl_backlog 是否足够大（防止从节点重连时触发全量重同步）、latest_fork_usec（fork 耗时是否在可接受范围内）、aof_current_size 与 aof_base_size 的比值（AOF 是否需要重写）。"
+    ],
+    "followUp": [
+      "如果从节点宕机又重启，持久化文件和主节点数据不一致怎么办？（答：从节点重启后会先尝试 PSYNC 增量同步；如果 backlog 不够则全量同步覆盖本地数据，从节点的旧 AOF 会被清空重建）",
+      "容器化部署 Redis 的持久化有什么额外挑战？（答：容器默认使用 overlay 文件系统性能较差需要挂载宿主机卷、Pod 重启后 IP 变化影响主从拓扑、需要 StatefulSet 保证存储卷持久化）"
+    ]
+  }
+]
