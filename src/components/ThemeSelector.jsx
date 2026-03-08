@@ -5,7 +5,6 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useState, useEffect } from 'react'
-import { Palette } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -48,12 +47,11 @@ export function ThemeSelector() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer">
+        <button className="flex items-center rounded-md px-2 py-1.5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
           <span
-            className="size-3.5 rounded-full border border-border"
+            className="size-4 rounded-full border border-border"
             style={{ backgroundColor: current.color }}
           />
-          <Palette className="size-3.5" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-36">

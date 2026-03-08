@@ -1,12 +1,13 @@
 /**
- * [INPUT]: react-router (Link), @/components/ui/separator, lucide-react
- * [OUTPUT]: Footer 页脚组件
- * [POS]: 全局布局组件，出现在所有页面底部
+ * [INPUT]: react-router (Link), @/data/problems, @/data/interviews, @/data/goInterviews
+ * [OUTPUT]: Footer 版记组件（居中装饰线 + 导航 + 统计）
+ * [POS]: 全局布局组件，古典版记风格，所有页面底部
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { Link } from 'react-router'
-import { Separator } from '@/components/ui/separator'
-import { Github } from 'lucide-react'
+import { problems } from '@/data/problems'
+import { interviews } from '@/data/interviews'
+import { goInterviews } from '@/data/goInterviews'
 
 const links = [
   { to: '/',             label: '首页' },
@@ -18,44 +19,33 @@ const links = [
 
 export function Footer() {
   return (
-    <footer className="w-full border-t border-border bg-background">
-      <div className="mx-auto max-w-6xl px-6 py-10">
-        <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
+    <footer className="w-full bg-background">
+      <div className="mx-auto max-w-3xl px-6 py-10">
 
-          <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary">
-              <span className="text-xs font-bold text-primary-foreground">L</span>
-            </div>
-            <span className="text-sm font-semibold text-foreground">LC100</span>
-          </div>
-
-          <nav className="flex items-center gap-6">
-            {links.map(({ to, label }) => (
-              <Link
-                key={to}
-                to={to}
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {label}
-              </Link>
-            ))}
-          </nav>
-
-          <a
-            href="https://github.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <Github className="size-4" />
-          </a>
+        {/* ── 装饰线 ── */}
+        <div className="flex items-center justify-center gap-3 text-primary/40 text-sm mb-6 select-none">
+          <span>─────────</span>
+          <span className="text-primary">✦</span>
+          <span>─────────</span>
         </div>
 
-        <Separator className="my-6" />
+        {/* ── 导航链接 — 居中 · 分隔 ── */}
+        <nav className="flex items-center justify-center text-sm text-muted-foreground mb-4">
+          {links.map(({ to, label }, i) => (
+            <span key={to} className="flex items-center">
+              {i > 0 && <span className="mx-2 text-border select-none">·</span>}
+              <Link to={to} className="transition-colors hover:text-foreground">
+                {label}
+              </Link>
+            </span>
+          ))}
+        </nav>
 
+        {/* ── 统计 ── */}
         <p className="text-center text-xs text-muted-foreground">
-          LeetCode Hot 100 · Go 题解 · Amethyst Haze 设计系统
+          题库 {problems.length} · Agent {interviews.length} · Go {goInterviews.length}
         </p>
+
       </div>
     </footer>
   )
