@@ -5,7 +5,7 @@
 
 ## 成员清单
 main.jsx:   应用启动点，ReactDOM.createRoot + TooltipProvider
-App.jsx:    路由根组件，BrowserRouter + Layout + Routes（/, /problem/:id, /design-system）
+App.jsx:    路由根组件，BrowserRouter + Layout + Routes（/, /leetcode, /problem/:id, /agent, /go, /design-system）
 index.css:  全局样式，Tailwind + shadcn + Amethyst Haze 主题变量
 
 ## 子目录
@@ -24,7 +24,8 @@ Hero.jsx:       旧版首屏 Hero（已不被引用，待清理）
 ui/             shadcn/ui 原子组件
 
 ### pages/
-Home.jsx:          路由 /，迷你 Hero + 分类/难度筛选 + 题目网格
+Landing.jsx:       路由 /，总目录页：三卷导航(题库/Agent/Go) + 总数统计 + 分类预览
+Home.jsx:          路由 /leetcode，LeetCode 古典目录页：分类/难度筛选 + 点引线目录行
 ProblemDetail.jsx: 路由 /problem/:id，阅读核心
 AgentHome.jsx:     路由 /agent，Agent 面试题古典目录页（8 分类 + 等级筛选）
 AgentDetail.jsx:   路由 /agent/:id，Agent 面试题书页阅读（背景 → 要点 → 追问）

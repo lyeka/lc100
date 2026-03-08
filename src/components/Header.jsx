@@ -22,10 +22,10 @@ const TOTALS = {
 }
 
 const navLinks = [
-  { to: '/', label: '题库', section: 'leetcode' },
-  { to: '/agent', label: 'Agent', section: 'agent' },
-  { to: '/go', label: 'Go', section: 'go' },
-  { to: '/design-system', label: '设计系统', section: null },
+  { to: '/',         label: '首页',  section: null },
+  { to: '/leetcode', label: '题库',  section: 'leetcode' },
+  { to: '/agent',    label: 'Agent', section: 'agent' },
+  { to: '/go',       label: 'Go',    section: 'go' },
 ]
 
 export function Header() {

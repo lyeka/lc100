@@ -9,9 +9,10 @@ import { Separator } from '@/components/ui/separator'
 import { Github } from 'lucide-react'
 
 const links = [
-  { to: '/', label: '题库' },
-  { to: '/agent', label: 'Agent' },
-  { to: '/go', label: 'Go' },
+  { to: '/',             label: '首页' },
+  { to: '/leetcode',     label: '题库' },
+  { to: '/agent',        label: 'Agent' },
+  { to: '/go',           label: 'Go' },
   { to: '/design-system', label: '设计系统' },
 ]
 

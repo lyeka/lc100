@@ -1,7 +1,7 @@
 /**
  * [INPUT]: react-router (useSearchParams, Link), react (useState), @/data/problems, @/lib/progress (useProgress)
  * [OUTPUT]: Home 首页 — 古典书籍目录页
- * [POS]: 路由 /，全站入口，按分类分组的 Table of Contents，纯文字筛选
+ * [POS]: 路由 /leetcode，LeetCode 目录页，按分类分组的 Table of Contents，纯文字筛选
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useState } from 'react'

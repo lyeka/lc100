@@ -2,12 +2,13 @@
  * [INPUT]: react-router, @/components/Header, @/components/Footer, @/pages/*
  * [OUTPUT]: App 根组件，包含路由结构和全局布局
  * [POS]: 应用入口，定义路由树，组合 Header + 页面内容 + Footer
- *        路由：/, /problem/:id, /agent, /agent/:id, /go, /go/:id, /design-system
+ *        路由：/, /leetcode, /problem/:id, /agent, /agent/:id, /go, /go/:id, /design-system
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { BrowserRouter, Routes, Route } from 'react-router'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
+import { Landing } from '@/pages/Landing'
 import { Home } from '@/pages/Home'
 import { ProblemDetail } from '@/pages/ProblemDetail'
 import { AgentHome } from '@/pages/AgentHome'
@@ -31,7 +32,8 @@ export default function App() {
     <BrowserRouter>
       <Layout>
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<Landing />} />
+          <Route path="/leetcode" element={<Home />} />
           <Route path="/problem/:id" element={<ProblemDetail />} />
           <Route path="/agent" element={<AgentHome />} />
           <Route path="/agent/:id" element={<AgentDetail />} />

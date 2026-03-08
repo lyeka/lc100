@@ -31,7 +31,8 @@ index.html        - HTML 入口，挂载点 #root + 防闪烁主题预设脚本
 ## 路由结构
 | 路径 | 页面 | 说明 |
 |------|------|------|
-| / | Home | 迷你 Hero + 分类/难度筛选 + 100 题网格 |
+| / | Landing | 总目录：三卷导航 + 总数统计 |
+| /leetcode | Home | 分类/难度筛选 + 100 题古典目录 |
 | /problem/:id | ProblemDetail | 描述(折叠) → 核心思路(突出) → 关键步骤(渐进) → Go 代码高亮 |
 | /agent | AgentHome | 8 大分类 · 等级筛选 · 74 题古典目录 |
 | /agent/:id | AgentDetail | 背景说明 → 参考要点(全展开) → 追问 |
