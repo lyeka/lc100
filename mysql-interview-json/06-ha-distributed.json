@@ -1,0 +1,149 @@
+[
+  {
+    "id": "M6-01",
+    "title": "MySQL 主从复制的原理是什么？三个线程各自负责什么？",
+    "category": "高可用与分布式",
+    "categoryId": 6,
+    "level": "L2/L3",
+    "answerPoints": [
+      "MySQL 主从复制基于 binlog 实现，涉及三个线程：主库的 Binlog Dump 线程、从库的 IO 线程、从库的 SQL 线程",
+      "Binlog Dump 线程（主库）：当从库连接主库请求复制时，主库启动一个 Binlog Dump 线程，负责读取主库的 binlog 事件并发送给从库。每个从库连接对应一个 Dump 线程",
+      "IO 线程（从库）：连接主库的 Dump 线程，接收 binlog 事件并写入从库本地的中继日志（Relay Log）。IO 线程不做 SQL 解析和执行，只负责网络传输和落盘",
+      "SQL 线程（从库）：读取 Relay Log 中的事件并在从库上执行（回放），使从库数据与主库保持一致。MySQL 5.7+ 支持多线程复制（MTS）——多个 SQL Worker 线程并行回放不同数据库或事务组的事件",
+      "复制的完整流程：主库执行事务 → 写入 binlog → Dump 线程发送给从库 → IO 线程写入 Relay Log → SQL 线程回放 → 从库数据更新。每一步都是异步的，所以主从之间存在延迟",
+      "复制模式：① 异步复制（默认）：主库提交事务后立即返回，不等从库确认，最快但可能丢数据 ② 半同步复制（Semi-Sync）：主库提交后等待至少一个从库确认收到 binlog 才返回，平衡了性能和安全 ③ 全同步复制：等所有从库都执行完毕才返回，最安全但最慢"
+    ],
+    "followUp": [
+      "主从复制延迟的常见原因和解决方案？（答：原因——①从库机器性能差 ②从库承担大量读请求 ③大事务（如一次性 UPDATE 百万行）④从库单线程回放跟不上主库多线程写入。解决——①使用多线程复制（MTS）②升级从库硬件 ③拆分大事务 ④使用并行复制的 WRITESET 模式（MySQL 8.0+，基于行级别的并行粒度，不再局限于按库或按事务组并行））",
+      "主库宕机时怎么切换到从库？（答：半同步复制下：确认从库已收到所有 binlog → 从库执行完 Relay Log → 将从库提升为新主库 → 其他从库重新指向新主库。GTID 模式下切换更简单，因为 GTID 全局唯一，从库可以自动定位到正确的复制位置）"
+    ]
+  },
+  {
+    "id": "M6-02",
+    "title": "半同步复制和异步复制有什么区别？GTID 解决了什么问题？",
+    "category": "高可用与分布式",
+    "categoryId": 6,
+    "level": "L3",
+    "answerPoints": [
+      "异步复制：主库提交事务后立即返回客户端成功，不等待从库确认。如果主库此时崩溃，从库可能还没收到这个事务的 binlog，导致数据丢失。性能最好但数据安全性最差",
+      "半同步复制（Semi-Synchronous Replication）：主库提交事务后等待至少一个从库确认已收到 binlog（写入 Relay Log），才返回客户端成功。保证了至少有一个从库有这个事务的日志。如果等待超时（rpl_semi_sync_master_timeout，默认 10 秒），自动降级为异步复制",
+      "MySQL 5.7 的增强半同步（After Sync / Loss-less Semi-Sync）：事务先写入 binlog → 发送给从库等待 ACK → 再在引擎层 commit。这样即使主库崩溃，未 commit 的事务不会被客户端看到，避免了「幻影读」问题。5.6 的 After Commit 模式是先 commit 再等 ACK，存在数据不一致风险",
+      "GTID（Global Transaction Identifier）：为每个事务分配全局唯一标识符，格式为 server_uuid:transaction_id。解决的问题：① 主从切换时不需要手动指定 binlog 文件名和偏移量（CHANGE MASTER TO ... MASTER_AUTO_POSITION=1），从库通过 GTID 自动定位复制位置 ② 保证同一个事务不会在从库上重复执行 ③ 多源复制（Multi-Source Replication）时更容易管理",
+      "GTID 的限制：① 不支持 CREATE TABLE ... SELECT 语句（一条 SQL 对应两个事务，GTID 无法映射）② 不能在事务中使用 CREATE TEMPORARY TABLE ③ sql_slave_skip_counter 在 GTID 模式下不可用（需要用空事务跳过）"
+    ],
+    "followUp": [
+      "Group Replication 和主从复制有什么区别？（答：Group Replication 是 MySQL 5.7 引入的基于 Paxos 协议的多主复制方案。所有节点都可以写入，通过分布式一致性协议保证数据一致。它是 InnoDB Cluster 的底层技术。与传统主从复制的区别：多写 vs 单写、强一致 vs 最终一致、自动故障检测和切换 vs 手动切换）"
+    ]
+  },
+  {
+    "id": "M6-03",
+    "title": "读写分离怎么实现？主从延迟导致读到旧数据怎么处理？",
+    "category": "高可用与分布式",
+    "categoryId": 6,
+    "level": "L2/L3",
+    "answerPoints": [
+      "读写分离的基本原则：写请求（INSERT/UPDATE/DELETE）发到主库，读请求（SELECT）发到从库。主库负责保证数据一致性，从库分担读压力",
+      "实现方式一——代理层：在应用和数据库之间加中间件（如 ProxySQL、MySQL Router、MyCat、ShardingSphere-Proxy），由中间件自动将读写请求路由到主库/从库。应用层无感知，但引入了新的单点和延迟",
+      "实现方式二——应用层：在应用代码或 ORM 框架中实现数据源路由（如 ShardingSphere-JDBC、Spring AbstractRoutingDataSource）。通过注解或规则标记 SQL 走主库还是从库。没有额外中间件，但需要改代码",
+      "主从延迟导致读旧数据的处理方案：① 强制走主库——对一致性要求高的读操作（如刚写完立即读）强制路由到主库 ② 延迟判断——查询前检查从库延迟（Seconds_Behind_Master），延迟过大则切回主库 ③ 等待 GTID——写入后记录主库的 GTID 位点，读从库时等待从库回放到该 GTID（SELECT WAIT_FOR_EXECUTED_GTID_SET(gtid, timeout)）④ 会话一致性——同一用户写操作后的短时间内，读请求也走主库",
+      "读写分离的注意事项：① 不适合写多读少的场景 ② 主从延迟在大事务、批量操作时可能很严重 ③ 从库宕机时要能自动切换到其他从库 ④ 事务中的读写必须走同一个数据源（主库）"
+    ],
+    "followUp": [
+      "一主多从架构下，从库数量越多越好吗？（答：不是。从库越多，主库的 Binlog Dump 线程越多，网络带宽消耗越大。一般建议不超过 5 个从库直连主库。更多从库可以用级联复制——从库 A 复制主库，从库 B/C 复制从库 A，减少主库压力）"
+    ]
+  },
+  {
+    "id": "M6-04",
+    "title": "什么时候需要分库分表？水平拆分和垂直拆分怎么选？拆分后有什么新问题？",
+    "category": "高可用与分布式",
+    "categoryId": 6,
+    "level": "L2/L3",
+    "background": "分库分表是分布式数据库的核心话题。面试官不光要你说方案，还要说拆分引入的新问题和解决思路。",
+    "answerPoints": [
+      "何时需要分库分表：① 单表数据量超过千万级（一般建议单表不超过 2000 万行），查询性能下降 ② 单库的写 QPS 达到瓶颈（磁盘 IO、连接数、CPU 饱和）③ 优化索引、SQL、缓存都无法解决性能问题后，才考虑分库分表——它是最后手段而非第一选择",
+      "垂直拆分：① 垂直分库——按业务模块拆分不同的库（用户库、订单库、商品库），降低单库的压力和耦合 ② 垂直分表——将一个宽表按字段拆分（频繁访问的字段放主表，不常用的大字段放扩展表），减少单行数据量提升查询速度",
+      "水平拆分：按某个维度（分片键）将数据分散到多个库/表中。每个分片的表结构相同但数据不同。常见分片策略：① 取模（hash(user_id) % N）——数据分布均匀但扩容需要重新 hash ② 范围（按时间或 ID 范围）——扩容方便但存在热点问题 ③ 一致性哈希——扩容时只影响相邻节点",
+      "分片键的选择原则：① 尽量选择查询最频繁的字段（如 user_id）② 分片键的值要均匀分布 ③ 尽量让同一用户的数据在同一个分片（避免跨分片查询）",
+      "拆分后引入的新问题：① 跨分片 JOIN——通常无法直接 JOIN，需要在应用层合并或使用全局表/冗余字段 ② 分布式事务——跨分片的事务需要 XA 或 TCC 方案 ③ 全局唯一 ID——自增主键在分片间不唯一，需要分布式 ID 方案 ④ 跨分片聚合——COUNT/SUM/ORDER BY 需要在应用层汇总 ⑤ 扩容难——增加分片时需要数据迁移和重路由",
+      "常用中间件：ShardingSphere（应用层方案 JDBC + 代理 Proxy）、Vitess（YouTube 开源，云原生分片方案）、TiDB（兼容 MySQL 的分布式数据库，自动分片无需中间件）"
+    ],
+    "followUp": [
+      "分库分表后怎么做数据迁移？（答：①停机迁移——最简单但有业务中断 ②双写方案——新老库同时写入 + 存量数据迁移 + 数据校验 + 切流 ③ binlog 同步——用 Canal/Maxwell 监听老库 binlog 同步到新库，追平后切流。关键是数据一致性校验和灰度切流）"
+    ]
+  },
+  {
+    "id": "M6-05",
+    "title": "分库分表后全局唯一 ID 怎么生成？雪花算法、号段模式、Redis 各有什么优缺点？",
+    "category": "高可用与分布式",
+    "categoryId": 6,
+    "level": "L3",
+    "answerPoints": [
+      "UUID：128 位全局唯一。优点：本地生成、无中心依赖、全球唯一。缺点：36 字符太长、无序导致 B+ 树频繁页分裂、不适合做主键。可以用有序 UUID（UUID v7，基于时间戳排序）改善页分裂问题",
+      "数据库自增：使用独立的自增表分配 ID。优点：简单可靠、ID 递增。缺点：性能瓶颈（单点写入）、单点故障。改进方案：设置不同起始值和步长（如两个库分别从 1 和 2 开始，步长 2），但扩容时步长调整麻烦",
+      "号段模式（Segment）：应用启动时从数据库批量获取一段 ID（如一次取 1000 个），用完再取下一段。优点：减少数据库访问次数、性能好。缺点：服务重启可能浪费部分 ID、需要中心化的号段分配。美团 Leaf-Segment 是典型实现，支持双 buffer 预取避免取号段时的延迟",
+      "雪花算法（Snowflake）：64 位长整型，结构：1 位符号位 + 41 位时间戳（毫秒级，可用 69 年）+ 10 位机器 ID（支持 1024 个节点）+ 12 位序列号（每毫秒 4096 个 ID）。优点：本地生成无网络调用、趋势递增（对 B+ 树友好）、性能极高。缺点：依赖时钟，时钟回拨会导致 ID 重复（解决方案：检测回拨时等待或使用 NTP 单调递增时钟）",
+      "Redis INCR：利用 Redis 的原子递增生成 ID。优点：性能高（单机 10 万+ QPS）、ID 严格递增。缺点：引入 Redis 依赖、Redis 重启后需要从持久化恢复计数、网络延迟",
+      "生产环境选择建议：① 中小规模优先雪花算法（本地生成、无依赖、性能好）② 需要严格递增用号段模式 ③ 有现成 Redis 基础设施用 Redis INCR 也可 ④ 避免用 UUID 做数据库主键"
+    ],
+    "followUp": [
+      "雪花算法的时钟回拨问题怎么解决？（答：①检测到回拨时拒绝生成 ID 并等待时钟追上 ②使用一个本地计数器替代系统时钟的毫秒部分（百度 UidGenerator 的做法）③使用 NTP 的 monotonic clock（单调递增时钟，不受系统时间修改影响）④存储上一次的时间戳，只允许向前推进）"
+    ]
+  },
+  {
+    "id": "M6-06",
+    "title": "MySQL 高可用架构有哪些方案？MHA、InnoDB Cluster、Orchestrator 怎么选？",
+    "category": "高可用与分布式",
+    "categoryId": 6,
+    "level": "L3",
+    "answerPoints": [
+      "MHA（Master High Availability Manager）：Perl 脚本工具，监控主库状态，主库宕机时自动选举从库并切换。流程：检测主库故障 → 从所有从库中选出数据最新的 → 将其提升为新主库 → 其他从库重新指向新主库。优点：成熟稳定、切换速度 10-30 秒、尽最大努力保证数据一致（从宕机主库的 binlog 恢复差异数据）。缺点：需要手动部署和配置、不支持自动恢复 MHA Manager 自身的高可用",
+      "InnoDB Cluster：MySQL 官方推出的高可用方案，底层基于 Group Replication（组复制）+ MySQL Router（路由代理）+ MySQL Shell（管理工具）。所有节点通过 Paxos 协议保证数据一致性。主库故障时自动选举新主库，切换时间 < 5 秒。优点：官方维护、强一致性、自动故障转移。缺点：至少需要 3 个节点、网络延迟敏感、写性能受共识协议影响",
+      "Orchestrator：Go 语言开发的 MySQL 复制拓扑管理和故障转移工具（GitHub 开源并在生产大规模使用）。特点：可视化的复制拓扑图、支持复杂的复制拓扑（如级联复制）、灵活的故障转移策略（可配置优先级、anti-affinity 等）、支持 GTID 和传统模式",
+      "选择建议：① 新项目推荐 InnoDB Cluster——官方方案，强一致性，配合 MySQL Router 使用体验好 ② 已有 MHA 的老项目可以继续使用，稳定可靠 ③ 大规模 MySQL 集群管理用 Orchestrator——复制拓扑管理能力最强 ④ 云环境直接用 RDS（AWS Aurora、阿里云 RDS 等），高可用由云平台保证",
+      "还有一种更激进的方案——直接用 TiDB/CockroachDB 等 NewSQL 分布式数据库，自带分片、高可用和分布式事务，不需要手动搭建复制和分库分表架构"
+    ],
+    "followUp": [
+      "MySQL Router 是怎么工作的？（答：MySQL Router 是轻量级中间件，部署在应用和数据库集群之间，维护集群拓扑信息。读写请求自动路由——写请求发到主节点，读请求负载均衡到只读节点。主库切换时 Router 自动感知新主库并更新路由，应用无需修改连接配置）"
+    ]
+  },
+  {
+    "id": "M6-07",
+    "title": "MySQL 的 XA 分布式事务是怎么工作的？为什么生产环境很少直接用 XA？",
+    "category": "高可用与分布式",
+    "categoryId": 6,
+    "level": "L3",
+    "background": "分布式事务是分库分表后绕不开的话题。面试官通过这道题考察你对分布式事务方案的理解和权衡能力。",
+    "answerPoints": [
+      "XA 事务是 X/Open 定义的分布式事务标准，采用两阶段提交（2PC）协议。MySQL 提供了 XA 事务的标准语法：XA START → 执行 SQL → XA END → XA PREPARE → XA COMMIT/ROLLBACK",
+      "XA 事务的两阶段：① Prepare 阶段——事务管理器（TM）向所有参与者（RM，即各数据库）发送 PREPARE 请求，每个 RM 执行本地事务并写 redo log，但不提交，返回 READY ② Commit 阶段——如果所有 RM 都返回 READY，TM 发送 COMMIT；如果有任何 RM 返回失败，TM 发送 ROLLBACK",
+      "MySQL 内部 XA：InnoDB 引擎内部使用 XA 事务保证 redo log 和 binlog 的一致性（两阶段提交），binlog 作为协调者。这是 MySQL 自带的，用户无感知",
+      "外部 XA 的问题——生产环境很少直接用的原因：① 性能差——所有参与者在 PREPARE 后到 COMMIT 之间持有锁，时间跨越两次网络往返，锁持有时间长、并发度低 ② 单点故障——TM 崩溃后参与者处于 PREPARE 状态（in-doubt），锁无法释放，需要人工介入 ③ 网络分区——协调者和参与者之间的网络问题可能导致部分提交部分回滚 ④ 不支持高可用——XA PREPARE 后主库切换，新主库不一定有 PREPARE 状态的事务信息",
+      "替代方案：① TCC（Try-Confirm-Cancel）——业务层实现预留/确认/取消三步，柔性事务 ② SAGA——长事务拆分为多个短事务，每个短事务有补偿操作，失败时反向补偿 ③ 本地消息表——通过消息中间件保证最终一致性（事务消息模式）④ AT 模式（Seata）——基于 undo log 的自动补偿，对业务无侵入。选择依据：强一致性需求用 XA 或 TCC，最终一致性用 SAGA 或消息队列"
+    ],
+    "followUp": [
+      "TCC 的三个阶段分别做什么？有什么注意点？（答：Try——检查业务条件并预留资源（如冻结库存而非直接扣减）；Confirm——确认执行（将冻结库存变为实际扣减）；Cancel——释放预留资源。注意点：①Confirm 和 Cancel 必须幂等（网络重试可能重复调用）②防空回滚（Try 没执行但 Cancel 被调用）③防悬挂（Cancel 先到达、Try 后到达）。TCC 对业务侵入大，需要为每个操作编写三个方法）"
+    ]
+  },
+  {
+    "id": "M6-08",
+    "title": "MySQL 8.0 有哪些核心新特性？窗口函数、CTE、INSTANT DDL 各解决什么问题？",
+    "category": "高可用与分布式",
+    "categoryId": 6,
+    "level": "L2/L3",
+    "answerPoints": [
+      "窗口函数（Window Functions）：在结果集上进行计算但保留原始行（不像 GROUP BY 会合并行）。常用函数：ROW_NUMBER()（行号）、RANK()（排名，有并列）、DENSE_RANK()（密集排名）、LAG()/LEAD()（前后行偏移）、SUM() OVER（累计求和）。解决的问题：之前需要变量模拟或自连接的复杂计算（如同组排名、累计统计）现在一行 SQL 搞定",
+      "CTE（Common Table Expression，公用表表达式）：WITH 子句定义临时命名结果集，可在主查询中多次引用。解决的问题：①替代嵌套子查询，提高 SQL 可读性 ②支持递归 CTE（WITH RECURSIVE），解决树形/层级数据查询（如组织架构、分类树的递归查询），之前 MySQL 无原生递归支持",
+      "INSTANT DDL：部分 DDL 操作只修改元数据不修改表数据，毫秒级完成。MySQL 8.0.12 开始支持 ALGORITHM=INSTANT 添加列（末尾追加），8.0.29 扩展到任意位置添加列。解决的问题：大表加字段不再需要长时间锁表或使用外部工具",
+      "其他重要新特性：① 原子 DDL——DDL 操作要么完全成功要么完全回滚（之前 DDL 中途失败可能留下不完整状态）② Hash Join——替代 BNL，无索引 JOIN 性能大幅提升 ③ 降序索引——真正支持 DESC 存储，混合排序不再 filesort ④ 不可见索引——安全测试索引删除的影响 ⑤ 函数索引——解决索引列使用函数导致失效 ⑥ EXPLAIN ANALYZE——实际执行并返回真实耗时 ⑦ NOWAIT/SKIP LOCKED——队列消费场景",
+      "MySQL 8.0 的性能改进：① 系统表全部迁移到 InnoDB ② 自增值持久化（重启后不会回退）③ GROUP BY 不再隐式排序 ④ 高并发场景下性能显著提升（512+ 并发连接时吞吐量远超 5.7）"
+    ],
+    "codeExample": {
+      "code": "-- 窗口函数：部门内薪资排名\nSELECT name, department, salary,\n  RANK() OVER (PARTITION BY department ORDER BY salary DESC) AS dept_rank\nFROM employees;\n\n-- CTE + 递归：查询组织架构树\nWITH RECURSIVE org_tree AS (\n  SELECT id, name, parent_id, 0 AS depth\n  FROM departments WHERE parent_id IS NULL\n  UNION ALL\n  SELECT d.id, d.name, d.parent_id, t.depth + 1\n  FROM departments d\n  INNER JOIN org_tree t ON d.parent_id = t.id\n)\nSELECT * FROM org_tree;\n\n-- INSTANT DDL：毫秒级加列\nALTER TABLE users ADD COLUMN avatar VARCHAR(255), ALGORITHM=INSTANT;",
+      "language": "sql",
+      "explanation": "窗口函数做分组排名不合并行，递归 CTE 查树形结构，INSTANT DDL 大表加列毫秒完成。"
+    },
+    "followUp": [
+      "MySQL 8.0 的自增值持久化解决了什么问题？（答：MySQL 5.7 及之前，自增值只保存在内存中。如果插入了 id=10 然后删除，自增计数器仍在 10。但重启后计数器会重新从表中 MAX(id) 计算，可能变成 9，导致新插入的行 id=10 与之前删除的 id=10 重复（如果有外部系统引用了旧 id=10）。MySQL 8.0 将自增值持久化到 redo log 中，重启后不会回退）"
+    ]
+  }
+]

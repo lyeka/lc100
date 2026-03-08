@@ -1,0 +1,168 @@
+[
+  {
+    "id": "M3-01",
+    "title": "ACID 四个特性分别靠 InnoDB 的什么机制来实现？",
+    "category": "事务与锁机制",
+    "categoryId": 3,
+    "level": "L2/L3",
+    "answerPoints": [
+      "原子性（Atomicity）——undo log：事务中的操作要么全部成功，要么全部回滚。InnoDB 在修改数据前先将旧值写入 undo log，事务回滚时通过 undo log 将数据恢复到修改前的状态",
+      "一致性（Consistency）——是其他三个特性共同保证的结果：原子性确保事务不会部分执行，隔离性确保并发事务互不干扰，持久性确保提交后的数据不丢失。一致性是目标，其他三个是手段",
+      "隔离性（Isolation）——锁 + MVCC：写-写冲突通过锁来互斥（行锁、间隙锁、临键锁）；写-读冲突通过 MVCC 实现非锁定读，让读操作读取历史版本而不阻塞写操作。不同隔离级别的 MVCC 行为不同（RC 每次 SELECT 创建新 ReadView，RR 只在事务第一次 SELECT 时创建）",
+      "持久性（Durability）——redo log：事务提交时将修改写入 redo log 并刷盘（而非直接将脏页刷盘），即使数据库崩溃，重启后也能通过 redo log 恢复已提交事务的修改。redo log 是 WAL 机制的核心"
+    ],
+    "followUp": [
+      "redo log 保证的是持久性，那 undo log 只用于回滚吗？（答：undo log 有两个作用——① 事务回滚（原子性）② MVCC 的版本链，让快照读能读到历史版本数据（隔离性）。所以 undo log 同时服务于原子性和隔离性）"
+    ]
+  },
+  {
+    "id": "M3-02",
+    "title": "MySQL 的四种隔离级别各解决了什么并发问题？RR 是怎么实现的？",
+    "category": "事务与锁机制",
+    "categoryId": 3,
+    "level": "L2/L3",
+    "answerPoints": [
+      "四种隔离级别解决的问题：① Read Uncommitted（读未提交）：什么都不解决，能读到其他事务未提交的数据（脏读）② Read Committed（读已提交）：解决脏读，但存在不可重复读（同一事务内两次读到不同数据）③ Repeatable Read（可重复读，InnoDB 默认）：解决脏读+不可重复读，通过 MVCC 保证同一事务内多次读的结果一致 ④ Serializable（串行化）：解决所有并发问题，读加共享锁、写加排他锁，并发度最低",
+      "InnoDB 在 RR 级别下通过 MVCC + 锁 来实现：快照读（普通 SELECT）通过 MVCC 的 ReadView 读取事务开始时的快照数据，保证可重复读；当前读（SELECT FOR UPDATE / INSERT / UPDATE / DELETE）通过加锁来防止并发冲突",
+      "RR 级别下 InnoDB 还通过间隙锁（Gap Lock）和临键锁（Next-Key Lock）来防止幻读——锁住索引记录之间的间隙，阻止其他事务在间隙中插入新记录",
+      "RC 和 RR 的 MVCC 实现差异：RC 在每次 SELECT 时都创建新的 ReadView，所以能读到其他事务已提交的最新数据；RR 只在事务第一次 SELECT 时创建 ReadView，后续读操作复用这个 ReadView，所以看到的数据始终一致"
+    ],
+    "followUp": [
+      "生产环境一般用什么隔离级别？（答：很多互联网公司用 RC 而非默认的 RR。原因：①RC 没有间隙锁，锁冲突更少，并发度更高 ②RC 下半一致性读（semi-consistent read）在 UPDATE 遇到锁时可以读最新已提交版本判断是否满足 WHERE 条件，不满足则跳过不等锁 ③RC 的 binlog 格式必须用 ROW，可以避免主从不一致。缺点是需要业务层能容忍不可重复读）",
+      "SERIALIZABLE 级别具体是怎么加锁的？（答：所有 SELECT 自动加共享锁（SELECT ... LOCK IN SHARE MODE），INSERT/UPDATE/DELETE 加排他锁。读写互斥，完全串行化）"
+    ]
+  },
+  {
+    "id": "M3-03",
+    "title": "MVCC 的完整实现机制是什么？隐藏列、undo log 版本链、ReadView 如何协作？",
+    "category": "事务与锁机制",
+    "categoryId": 3,
+    "level": "L2/L3",
+    "background": "MVCC 是 MySQL 面试的必考题。面试官通常要求你画出版本链并手动推演 ReadView 的可见性判断过程。",
+    "answerPoints": [
+      "InnoDB 每行数据有两个隐藏列：trx_id（最近修改该行的事务 ID）和 roll_pointer（指向 undo log 中该行旧版本的指针）。还有一个可选的 row_id（没有主键时自动生成的 6 字节递增 ID）",
+      "undo log 版本链：每次事务修改一行数据时，旧版本被保存到 undo log 中，新版本的 roll_pointer 指向旧版本。多次修改形成一条按 trx_id 串联的版本链——链头是最新版本，沿着 roll_pointer 可以找到任意历史版本",
+      "ReadView 的四个核心字段：① creator_trx_id：创建该 ReadView 的事务 ID ② m_ids：创建 ReadView 时所有活跃（未提交）事务的 ID 列表 ③ min_trx_id：m_ids 中的最小值 ④ max_trx_id：创建 ReadView 时系统应分配给下一个事务的 ID（即已分配的最大 trx_id + 1）",
+      "版本可见性判断规则（从版本链头部开始逐个判断）：① trx_id == creator_trx_id → 可见（自己修改的）② trx_id < min_trx_id → 可见（事务在 ReadView 创建前已提交）③ trx_id >= max_trx_id → 不可见（事务在 ReadView 创建后才开启）④ min_trx_id <= trx_id < max_trx_id 且 trx_id 不在 m_ids 中 → 可见（事务虽然在活跃列表范围内但已提交）⑤ trx_id 在 m_ids 中 → 不可见（事务还未提交）。如果当前版本不可见，沿 roll_pointer 找下一个版本继续判断",
+      "RC vs RR 的区别就在于 ReadView 的创建时机：RC 每次 SELECT 创建新 ReadView（所以能看到其他事务期间提交的数据），RR 只在第一次 SELECT 时创建一次 ReadView（此后一直用同一个快照，保证可重复读）"
+    ],
+    "codeExample": {
+      "code": "-- 模拟 MVCC 可见性判断\n-- 假设初始数据: id=1, name='Alice', trx_id=10\n\n-- 事务 A (trx_id=20) 开始，执行第一次 SELECT\n-- RR 级别下创建 ReadView: creator=20, m_ids=[20], min=20, max=21\n\n-- 事务 B (trx_id=21) 更新 name='Bob' 并提交\n-- 版本链: [trx_id=21, name='Bob'] -> [trx_id=10, name='Alice']\n\n-- 事务 A 第二次 SELECT:\n-- 检查版本链头: trx_id=21 >= max_trx_id=21 → 不可见\n-- 沿 roll_pointer 找: trx_id=10 < min_trx_id=20 → 可见\n-- 结果: name='Alice' （可重复读！）\n\n-- 如果是 RC 级别:\n-- 第二次 SELECT 重新创建 ReadView: creator=20, m_ids=[20], min=20, max=22\n-- 检查 trx_id=21: 在 [min=20, max=22) 范围内，且不在 m_ids=[20] 中 → 可见\n-- 结果: name='Bob' （读到了已提交的最新值）",
+      "language": "sql",
+      "explanation": "RR 复用 ReadView 所以看不到事务 B 的修改；RC 重新创建 ReadView 所以能看到事务 B 已提交的修改。"
+    },
+    "followUp": [
+      "undo log 什么时候被清理（purge）？（答：当没有任何活跃事务需要访问该 undo log 版本时，后台 purge 线程会清理。如果长事务一直不提交，undo log 版本链会越来越长，导致 undo 表空间膨胀和查询变慢——这就是长事务的危害之一）",
+      "MVCC 能完全替代锁吗？（答：不能。MVCC 只解决读-写并发（读不阻塞写），写-写并发仍然需要锁来保证互斥。SELECT FOR UPDATE 等当前读操作也不走 MVCC 而是直接加锁读最新版本）"
+    ]
+  },
+  {
+    "id": "M3-04",
+    "title": "可重复读隔离级别下能完全避免幻读吗？什么场景下会出现幻读？",
+    "category": "事务与锁机制",
+    "categoryId": 3,
+    "level": "L3",
+    "background": "这是高阶面试题。很多人认为 InnoDB 的 RR 完全解决了幻读，但实际有例外场景。面试官用这道题区分背八股文和真正理解原理的候选人。",
+    "answerPoints": [
+      "InnoDB 在 RR 级别下通过两种机制防止幻读：①快照读通过 MVCC 的 ReadView 保证事务内多次读结果一致 ②当前读通过间隙锁/临键锁锁住记录之间的间隙，阻止其他事务插入新记录",
+      "但存在一种经典的幻读场景：事务 A 先做快照读（SELECT），然后做当前读（SELECT FOR UPDATE 或 UPDATE），两次查询的结果可能不一致——因为快照读用的是 ReadView 看历史版本，当前读读的是最新已提交版本",
+      "具体场景：事务 A SELECT WHERE id > 5 返回空。此时事务 B INSERT id=10 并提交。事务 A 再 UPDATE WHERE id > 5（当前读），会更新到 id=10 这条记录。然后事务 A 再 SELECT WHERE id > 5（快照读），由于事务 A 自己修改了 id=10 这行（trx_id 变成事务 A 的），根据 MVCC 规则 creator_trx_id 相等 → 可见，所以能看到 id=10，出现了「幻读」",
+      "本质原因：快照读和当前读混用时，MVCC 的快照和当前读的最新数据之间产生了不一致。事务 A 的 UPDATE 将 id=10 行的 trx_id 改成了自己，打破了 ReadView 的过滤",
+      "如何完全避免：如果需要严格防止幻读，应在事务开始时就使用当前读（SELECT ... FOR UPDATE），通过加锁来防止其他事务插入。或者使用 SERIALIZABLE 隔离级别"
+    ],
+    "followUp": [
+      "间隙锁会锁住哪些范围？（答：假设索引中有记录 10, 20, 30，间隙锁会锁住 (10,20)、(20,30) 等间隙。临键锁 = 记录锁 + 间隙锁，锁住 (10,20]，即间隙加上右边界记录。加锁的基本单位是临键锁，但在某些条件下会退化——等值查询唯一索引命中时退化为记录锁，等值查询唯一索引未命中时退化为间隙锁）"
+    ]
+  },
+  {
+    "id": "M3-05",
+    "title": "InnoDB 的行级锁有哪几种？记录锁、间隙锁、临键锁各锁什么范围？加锁规则是什么？",
+    "category": "事务与锁机制",
+    "categoryId": 3,
+    "level": "L2/L3",
+    "answerPoints": [
+      "InnoDB 三种行级锁：① 记录锁（Record Lock）：锁定索引上的某一条记录，阻止其他事务对该记录的修改和删除 ② 间隙锁（Gap Lock）：锁定两条索引记录之间的间隙（开区间），阻止其他事务在间隙中插入新记录，用于防止幻读 ③ 临键锁（Next-Key Lock）：记录锁 + 间隙锁的组合（左开右闭区间），是 InnoDB RR 级别下加锁的基本单位",
+      "加锁的两条核心原则：① 加锁的基本单位是 Next-Key Lock（左开右闭区间）② 查找过程中访问到的索引记录才会加锁——非访问路径上的记录不加锁",
+      "Next-Key Lock 的退化规则：① 等值查询唯一索引且命中：退化为记录锁（只锁这一条记录，不需要间隙锁因为唯一索引保证不会有重复插入）② 等值查询唯一索引未命中：退化为间隙锁（锁住目标值所在的间隙）③ 等值查询非唯一索引命中：临键锁 + 向右遍历到第一个不满足条件的记录再加间隙锁 ④ 范围查询：对扫描过的所有记录加临键锁",
+      "锁是加在索引上的，不是加在行上。如果 SQL 没有走索引，InnoDB 会对聚簇索引的所有记录加临键锁（效果等同于锁表）。这就是为什么 UPDATE/DELETE 没有走索引会导致锁全表的原因",
+      "除了行级锁，InnoDB 还有：① 插入意向锁（Insert Intention Lock）：一种特殊的间隙锁，多个事务可以同时持有同一间隙的插入意向锁（只要插入位置不同），不互相冲突 ② 自增锁（AUTO-INC Lock）：保护自增列的表级锁，MySQL 8.0 默认 innodb_autoinc_lock_mode=2（交叉模式），不使用表级自增锁"
+    ],
+    "followUp": [
+      "RC 级别下有间隙锁吗？（答：没有。RC 级别只有记录锁，没有间隙锁和临键锁。这就是 RC 并发性能更好但无法防止幻读的原因）",
+      "两个 INSERT 语句会互相阻塞吗？（答：正常情况不会——插入意向锁之间不冲突。但如果插入位置被另一个事务的间隙锁或临键锁锁住了，INSERT 会等待锁释放。如果两个 INSERT 触发了唯一键冲突，还可能导致死锁）"
+    ]
+  },
+  {
+    "id": "M3-06",
+    "title": "什么情况下会发生死锁？InnoDB 怎么检测死锁？如何预防？",
+    "category": "事务与锁机制",
+    "categoryId": 3,
+    "level": "L3",
+    "answerPoints": [
+      "死锁的本质是两个（或多个）事务互相持有对方需要的锁，形成循环等待。经典场景：事务 A 锁住行 1 等待行 2，事务 B 锁住行 2 等待行 1",
+      "InnoDB 死锁检测机制：采用 wait-for graph（等待图）算法，主动检测是否存在循环等待。当检测到死锁时，InnoDB 选择一个代价最小的事务（通常是 undo log 量最少的事务）作为牺牲者进行回滚，让另一个事务继续执行",
+      "死锁检测的性能问题：每次有事务加锁等待时都要检测是否形成死锁，时间复杂度 O(n)。在高并发+热点行场景下（如秒杀），大量事务同时竞争同一行锁，死锁检测开销巨大。可以通过 innodb_deadlock_detect=off 关闭主动检测，改用 innodb_lock_wait_timeout（默认 50 秒）超时回滚",
+      "常见的死锁场景：①相反顺序更新多行 ②间隙锁+插入意向锁冲突（两个事务各自持有相邻间隙的间隙锁，然后都尝试在对方的间隙中 INSERT）③唯一键冲突死锁（INSERT 遇到唯一键冲突时会加共享锁，多个事务同时插入相同唯一键值可能死锁）",
+      "死锁预防策略：① 保持一致的加锁顺序（如按主键升序更新）② 尽量缩短事务时间，减少锁持有时间 ③ 合理设计索引，避免因索引失效导致锁表 ④ 热点行优化：使用乐观锁代替悲观锁，或在应用层做排队 ⑤ 对于秒杀场景考虑关闭死锁检测+设短超时时间"
+    ],
+    "followUp": [
+      "怎么查看 InnoDB 最近的死锁信息？（答：SHOW ENGINE INNODB STATUS 中 LATEST DETECTED DEADLOCK 部分，会显示死锁的两个事务各自持有的锁和等待的锁、执行的 SQL、被回滚的事务。也可以开启 innodb_print_all_deadlocks 将所有死锁信息写入错误日志）"
+    ]
+  },
+  {
+    "id": "M3-07",
+    "title": "乐观锁和悲观锁在 MySQL 中怎么实现？各适合什么并发场景？",
+    "category": "事务与锁机制",
+    "categoryId": 3,
+    "level": "L2/L3",
+    "answerPoints": [
+      "悲观锁（Pessimistic Locking）：假设一定会发生冲突，操作数据前先加锁。在 MySQL 中通过 SELECT ... FOR UPDATE（排他锁）或 SELECT ... LOCK IN SHARE MODE / FOR SHARE（共享锁，8.0 推荐用 FOR SHARE）实现。锁在事务提交/回滚时释放",
+      "乐观锁（Optimistic Locking）：假设冲突很少发生，不加数据库锁，而是在更新时检查数据是否被其他事务修改过。通常通过版本号（version）或时间戳（updated_at）实现：UPDATE ... SET version = version + 1 WHERE id = ? AND version = ?，如果 affected_rows = 0 说明数据已被修改，需要重试",
+      "悲观锁适用场景：① 写冲突概率高（如库存扣减）② 不允许重试的业务逻辑 ③ 更新操作比较复杂，重试代价大。缺点是降低并发度，可能死锁",
+      "乐观锁适用场景：① 读多写少，冲突概率低 ② 业务允许重试 ③ 高并发环境需要最大化吞吐量。缺点是冲突时需要重试，高冲突场景下重试频繁反而性能更差（ABA 问题也需要注意）",
+      "MySQL 8.0 新增 NOWAIT 和 SKIP LOCKED 选项：SELECT ... FOR UPDATE NOWAIT 如果遇到锁立即报错返回，不等待；SELECT ... FOR UPDATE SKIP LOCKED 跳过已锁定的行返回未锁定的行。这两个选项适合队列消费、任务分配等场景"
+    ],
+    "codeExample": {
+      "code": "-- 悲观锁：SELECT FOR UPDATE\nBEGIN;\nSELECT stock FROM products WHERE id = 1 FOR UPDATE; -- 加排他锁\n-- 如果 stock > 0\nUPDATE products SET stock = stock - 1 WHERE id = 1;\nCOMMIT;\n\n-- 乐观锁：版本号机制\nSELECT stock, version FROM products WHERE id = 1;\n-- 假设 stock=10, version=3\nUPDATE products SET stock = stock - 1, version = version + 1\n  WHERE id = 1 AND version = 3;\n-- affected_rows = 0 说明被其他事务修改过，需要重试\n\n-- MySQL 8.0 NOWAIT / SKIP LOCKED\nSELECT * FROM tasks WHERE status = 'pending'\n  ORDER BY id LIMIT 1\n  FOR UPDATE SKIP LOCKED; -- 跳过已被其他事务锁定的行",
+      "language": "sql",
+      "explanation": "悲观锁通过 FOR UPDATE 在数据库层加锁；乐观锁通过 version 字段在应用层做冲突检测；SKIP LOCKED 适合多消费者队列场景。"
+    },
+    "followUp": [
+      "CAS（Compare And Swap）和乐观锁有什么关系？（答：乐观锁的 UPDATE ... WHERE version = old_version 本质就是 CAS 操作——比较版本号是否等于预期值，相等则更新。失败则说明数据已被修改，需要重试。和 CPU 级别的 CAS 指令思想一致）"
+    ]
+  },
+  {
+    "id": "M3-08",
+    "title": "当前读和快照读有什么区别？哪些 SQL 是当前读？",
+    "category": "事务与锁机制",
+    "categoryId": 3,
+    "level": "L2/L3",
+    "answerPoints": [
+      "快照读（Snapshot Read）：普通的 SELECT 语句，不加锁，通过 MVCC 读取 ReadView 对应的历史版本数据。在 RR 级别下，整个事务期间读到的都是事务开始时的快照数据",
+      "当前读（Current Read）：读取数据的最新已提交版本，并对读取的记录加锁。当前读会忽略 MVCC 的 ReadView，直接读最新数据",
+      "属于当前读的 SQL：① SELECT ... FOR UPDATE（加排他锁）② SELECT ... FOR SHARE / LOCK IN SHARE MODE（加共享锁）③ INSERT（插入前需要检查唯一约束，读取最新数据）④ UPDATE（先定位到最新行再修改）⑤ DELETE（先定位到最新行再标记删除）",
+      "为什么 UPDATE 和 DELETE 必须是当前读？因为如果读的是快照版本，修改/删除的可能是过时数据。比如事务 A 要 UPDATE x SET val=10 WHERE id=1，如果读到的是快照中 val=5 的版本，但实际已经被事务 B 改成 val=8 并提交了，基于 val=5 去修改会丢失事务 B 的更新",
+      "当前读的加锁行为：在 RR 级别下，当前读除了对记录加行锁，还会根据索引类型加间隙锁/临键锁来防止幻读。在 RC 级别下只加记录锁，不加间隙锁"
+    ],
+    "followUp": [
+      "在 RR 级别下，事务内先执行了 SELECT（快照读），再执行 SELECT FOR UPDATE（当前读），两次结果不一样正常吗？（答：完全正常。快照读返回的是事务开始时的数据快照，当前读返回的是最新已提交数据并加锁。如果期间有其他事务修改并提交了数据，两者结果就会不同。如果需要一致性保证，应该统一使用当前读或快照读，不要混用）"
+    ]
+  },
+  {
+    "id": "M3-09",
+    "title": "意向锁是什么？为什么行锁之前要加意向锁？",
+    "category": "事务与锁机制",
+    "categoryId": 3,
+    "level": "L3",
+    "answerPoints": [
+      "意向锁（Intention Lock）是 InnoDB 的表级锁，分为意向共享锁（IS）和意向排他锁（IX）。当事务需要对某行加行级共享锁时，先对表加 IS 锁；当事务需要对某行加行级排他锁时，先对表加 IX 锁",
+      "意向锁存在的目的：解决表级锁和行级锁的冲突检测效率问题。假设事务 A 对表中某一行加了排他锁，事务 B 想对整个表加表级排他锁（如 LOCK TABLES ... WRITE 或 ALTER TABLE）。如果没有意向锁，事务 B 必须逐行检查是否有行锁——效率极低。有了意向锁后，事务 B 只需检查表上是否有 IX/IS 锁即可快速判断",
+      "意向锁的兼容关系：IS 和 IS 兼容、IS 和 IX 兼容、IX 和 IX 兼容（意向锁之间互不冲突）。但意向锁和表级的 S/X 锁之间：IS 和表级 S 兼容但和表级 X 冲突；IX 和表级 S、X 都冲突",
+      "意向锁是 InnoDB 自动加的，不需要用户手动操作。加意向锁的开销极小（只是在表级别设置一个标记），但能极大提升表级锁的判断效率",
+      "意向锁不会阻塞普通的行级加锁操作——两个事务可以同时对不同行加行级排他锁（各自先加表级 IX 锁，IX 之间兼容，然后各自加行级 X 锁，行不同所以不冲突）"
+    ],
+    "followUp": [
+      "AUTO-INC 锁是什么级别的锁？（答：表级锁。MySQL 5.1 之前，每个 INSERT 语句都需要持有 AUTO-INC 表锁直到语句结束。MySQL 5.1+ 引入 innodb_autoinc_lock_mode 参数：mode=0 传统模式（表锁），mode=1 连续模式（简单 INSERT 用轻量互斥量，批量 INSERT 用表锁），mode=2 交叉模式（都用轻量互斥量，性能最好但自增值可能不连续，MySQL 8.0 默认）。基于 STATEMENT 格式的 binlog 主从复制在 mode=2 下可能不安全，需要用 ROW 格式）"
+    ]
+  }
+]

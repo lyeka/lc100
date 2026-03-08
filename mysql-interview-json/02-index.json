@@ -1,0 +1,217 @@
+[
+  {
+    "id": "M2-01",
+    "title": "为什么 MySQL 索引用 B+ 树而不用 B 树、红黑树或哈希表？",
+    "category": "索引原理与优化",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "background": "索引面试的开门题。面试官不是要你背结论，而是看你能否从磁盘 IO 和数据结构特性出发推导出 B+ 树的优势。",
+    "answerPoints": [
+      "磁盘 IO 是性能瓶颈：索引数据存储在磁盘上，每次访问一个树节点就是一次磁盘 IO（或 Buffer Pool 查找）。索引选型的核心目标是最小化磁盘 IO 次数，也就是让树尽量矮",
+      "B 树 vs B+ 树：B 树的非叶子节点也存数据，导致每个节点能容纳的 key 数量少，树更高，IO 次数更多。B+ 树非叶子节点只存 key 和指针，一个 16KB 的页可以存上千个 key，3 层 B+ 树就能索引上亿条数据（千×千×千）。另外 B+ 树的叶子节点通过双向链表连接，范围查询只需遍历链表，B 树的范围查询需要中序遍历整棵树",
+      "红黑树/AVL 树：本质是二叉树，每个节点最多 2 个子节点，树高 = O(logN)。1000 万条数据树高约 23 层，意味着最坏情况 23 次磁盘 IO。而 B+ 树同样数据量只需 3~4 层。二叉树是内存数据结构，不适合磁盘存储",
+      "哈希索引：哈希表只支持等值查询（= 和 IN），不支持范围查询（>、<、BETWEEN）、排序（ORDER BY）、最左前缀匹配。且存在哈希冲突问题。InnoDB 的自适应哈希索引是作为 B+ 树的补充，而非替代",
+      "跳表：时间复杂度 O(logN) 与 B+ 树相当，但跳表的每个节点只存一个元素，同样数据量需要的节点数远多于 B+ 树，磁盘 IO 次数更多。跳表适合内存数据库（如 Redis），不适合磁盘数据库"
+    ],
+    "followUp": [
+      "B+ 树的叶子节点是单向链表还是双向链表？为什么？（答：双向链表。因为需要支持正向和反向遍历，ORDER BY ASC/DESC 都可以利用索引排序，避免 filesort）",
+      "为什么 MongoDB 用 B 树而 MySQL 用 B+ 树？（答：MongoDB 的设计偏向单文档查询，B 树的非叶子节点也存数据，等值查询可能不需要访问叶子节点就能返回。MySQL 更偏向关系型查询和范围扫描，B+ 树的叶子节点链表更适合范围查询和排序）"
+    ]
+  },
+  {
+    "id": "M2-02",
+    "title": "聚簇索引和二级索引有什么区别？什么是回表？为什么要尽量避免？",
+    "category": "索引原理与优化",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "answerPoints": [
+      "聚簇索引（Clustered Index）：InnoDB 中表数据本身就是按主键组织的 B+ 树，叶子节点存储完整的行数据。每个表只能有一个聚簇索引。如果没有显式定义主键，InnoDB 会选择第一个非 NULL 的唯一索引，都没有则自动生成一个 6 字节的隐藏 row_id 作为聚簇索引",
+      "二级索引（Secondary Index）：非主键索引的 B+ 树，叶子节点存储的是索引列的值 + 对应的主键值（不是行数据指针）。一个表可以有多个二级索引",
+      "回表（Bookmark Lookup）：通过二级索引查到主键值后，还需要拿主键值到聚簇索引的 B+ 树中再查一次，获取完整行数据。这个过程叫回表。回表是随机 IO（因为主键值不连续），代价高",
+      "回表的性能代价：每次回表都是一次（或多次）额外的 B+ 树查找。如果二级索引扫描返回大量行，每行都要回表一次，产生大量随机 IO。这就是为什么当优化器估算回表代价太高时，宁可走全表扫描（聚簇索引的顺序扫描是顺序 IO，比大量随机回表更快）",
+      "避免回表的方案：①覆盖索引——让查询的列都包含在索引中，直接从索引获取数据 ②索引下推（ICP）——在索引层过滤更多条件，减少回表次数 ③合理设计索引，让高频查询走覆盖索引"
+    ],
+    "codeExample": {
+      "code": "-- 假设 users 表有 (id, name, age, city)，二级索引 idx_name_age(name, age)\n\n-- 需要回表：SELECT * 需要完整行数据，索引只有 name, age\nEXPLAIN SELECT * FROM users WHERE name = '张三';\n-- Extra: NULL（需要回表取完整行）\n\n-- 不需要回表（覆盖索引）：只查索引中包含的列\nEXPLAIN SELECT name, age FROM users WHERE name = '张三';\n-- Extra: Using index（覆盖索引，无需回表）\n\n-- 不需要回表：主键也在二级索引的叶子节点中\nEXPLAIN SELECT id, name, age FROM users WHERE name = '张三';\n-- Extra: Using index（id 是主键，二级索引叶子节点自带）",
+      "language": "sql",
+      "explanation": "二级索引叶子节点自带主键值，所以 SELECT id, name, age 也能走覆盖索引。"
+    },
+    "followUp": [
+      "为什么 InnoDB 的二级索引存主键值而不是存行地址？（答：如果存行地址，当数据页分裂或行移动时，所有二级索引都要更新地址。存主键值虽然需要回表，但数据移动时二级索引不需要更新，维护成本更低）",
+      "主键为什么建议用自增整型而不是 UUID？（答：自增主键插入时总是追加到 B+ 树末尾，顺序写入效率高。UUID 随机分布，插入时会随机写到不同的数据页，导致大量页分裂和碎片。另外自增整型占 4/8 字节，UUID 占 36 字节，二级索引存主键值更大，浪费空间）"
+    ]
+  },
+  {
+    "id": "M2-03",
+    "title": "联合索引的最左前缀原则是什么？范围查询会截断后续字段吗？",
+    "category": "索引原理与优化",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "background": "联合索引是面试重灾区。面试官喜欢给出各种 WHERE 条件组合让你判断索引是否能用上、用了几个字段。关键是理解 B+ 树的排序规则。",
+    "answerPoints": [
+      "最左前缀原则：联合索引 (a, b, c) 的 B+ 树按 a 排序，a 相同时按 b 排序，b 相同时按 c 排序。查询必须从最左列开始匹配才能使用索引。可以用到索引的组合：(a)、(a,b)、(a,b,c)。单独查 (b) 或 (b,c) 无法使用索引，因为在不知道 a 的情况下，b 是无序的",
+      "MySQL 优化器会自动调整 WHERE 条件顺序，所以 WHERE b=1 AND a=2 和 WHERE a=2 AND b=1 效果一样，都能用到索引。最左前缀指的是索引定义的列顺序，不是 SQL 书写顺序",
+      "范围查询的截断规则：范围条件（>、<、BETWEEN、LIKE 前缀匹配）可以使用索引，但范围条件右边的列无法利用索引排序。例如 WHERE a=1 AND b>2 AND c=3，a 走等值匹配，b 走范围扫描，c 无法利用索引（因为 b 的范围扫描结果中 c 是无序的）",
+      ">=、<=、BETWEEN 的特殊情况：WHERE a=1 AND b>=2 AND c=3 中，b>=2 可以定位到 b=2 的起始位置，在 b=2 这些记录中 c 是有序的，可以继续使用索引。但 b>2 的记录中 c 无序。MySQL 8.0 的 Index Range Scan 优化让 >= 的场景能更好地利用索引",
+      "LIKE 的索引使用：LIKE 'abc%' 可以使用索引（前缀匹配），LIKE '%abc' 不行（无法定位起始位置），LIKE '%abc%' 也不行",
+      "索引跳跃扫描（Index Skip Scan，MySQL 8.0.13+）：如果联合索引 (a, b) 中 a 的区分度很低（如性别只有 M/F），查询 WHERE b=1 时，优化器可能将其优化为 WHERE a='M' AND b=1 UNION WHERE a='F' AND b=1，跳过最左前缀限制"
+    ],
+    "codeExample": {
+      "code": "-- 联合索引 idx_abc(a, b, c)\n\n-- 全部用上：a 等值 + b 等值 + c 等值\nWHERE a = 1 AND b = 2 AND c = 3;   -- key_len 覆盖 a+b+c\n\n-- 用 a, b：c 被范围截断\nWHERE a = 1 AND b > 2 AND c = 3;   -- key_len 只覆盖 a+b\n\n-- 只用 a：b 缺失，c 断裂\nWHERE a = 1 AND c = 3;             -- key_len 只覆盖 a\n\n-- 全部失效：不满足最左前缀\nWHERE b = 2 AND c = 3;             -- type: ALL（全表扫描）\n\n-- 用 a, b, c：ORDER BY 利用索引排序\nWHERE a = 1 AND b = 2 ORDER BY c;  -- Extra: 无 filesort",
+      "language": "sql",
+      "explanation": "通过 EXPLAIN 的 key_len 可以判断联合索引实际用了几个字段。key_len 越长说明用上的字段越多。"
+    },
+    "followUp": [
+      "联合索引的列顺序怎么设计？（答：①等值查询频繁的列放前面 ②区分度高的列放前面（相同空间能过滤更多数据）③如果有排序需求，ORDER BY 的列放在最后 ④兼顾覆盖索引，把 SELECT 需要的列也纳入考虑）",
+      "WHERE a IN (1,2) AND b = 3 能用联合索引 (a,b) 吗？（答：可以。IN 在 MySQL 中被视为多个等值条件的组合，相当于 (a=1 AND b=3) OR (a=2 AND b=3)，都能走索引）"
+    ]
+  },
+  {
+    "id": "M2-04",
+    "title": "什么是覆盖索引？它怎么避免回表？EXPLAIN 里怎么看？",
+    "category": "索引原理与优化",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "answerPoints": [
+      "覆盖索引（Covering Index）不是一种独立的索引类型，而是一种查询优化效果：当查询需要的所有列（SELECT 列 + WHERE 列 + ORDER BY 列）都包含在某个索引中时，引擎可以直接从索引获取数据，无需回表到聚簇索引",
+      "覆盖索引的性能优势：①避免回表的随机 IO ②索引比数据行小得多，读取的数据页更少 ③索引是顺序存储的，对 CPU 缓存更友好",
+      "在 EXPLAIN 中，Extra 列显示 Using index 表示使用了覆盖索引。注意区分：Using index 是覆盖索引，Using index condition 是索引下推（ICP），两者不同",
+      "二级索引的叶子节点自带主键值，所以 SELECT 主键列也不需要回表。这意味着联合索引 (a, b) 实际上覆盖了 a、b、主键三个列",
+      "覆盖索引的常见应用：① count 查询 SELECT count(*) WHERE idx_col = value ② 分页查询先用覆盖索引取 id 再回表取完整数据（延迟关联） ③ 联合索引设计时有意识地包含查询需要的列"
+    ],
+    "followUp": [
+      "覆盖索引有什么缺点？（答：索引越大越多，占用的存储空间越大，INSERT/UPDATE/DELETE 时维护索引的成本越高。不能盲目把所有查询列都加进索引，要在查询性能和写入性能之间权衡）",
+      "SELECT * 为什么是覆盖索引的天敌？（答：SELECT * 需要所有列的数据，几乎不可能通过索引覆盖所有列，必然导致回表。养成只 SELECT 需要的列的习惯，有助于利用覆盖索引）"
+    ]
+  },
+  {
+    "id": "M2-05",
+    "title": "索引下推（ICP）是什么？在什么场景下能减少回表次数？",
+    "category": "索引原理与优化",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "background": "MySQL 5.6 引入的重要优化。面试官考察你对存储引擎层和 Server 层交互方式的理解。",
+    "answerPoints": [
+      "索引下推（Index Condition Pushdown, ICP）是将 WHERE 条件中可以利用索引列判断的部分，从 Server 层下推到存储引擎层执行。在索引遍历过程中，先在引擎层用索引列做条件过滤，过滤后再回表取数据，减少回表次数",
+      "没有 ICP 的流程（MySQL 5.6 前）：存储引擎根据索引找到满足最左前缀条件的记录 → 回表取完整行 → 返回 Server 层 → Server 层再用 WHERE 其他条件过滤。即使联合索引中后续列可以过滤掉很多行，引擎层也不做过滤，每行都回表",
+      "有 ICP 的流程（MySQL 5.6+）：存储引擎根据索引找到满足最左前缀条件的记录 → 在引擎层继续用索引中其他列做条件过滤 → 只有满足所有索引列条件的记录才回表 → 返回 Server 层",
+      "典型场景：联合索引 (name, age)，WHERE name LIKE '张%' AND age = 25。没有 ICP 时，所有姓张的记录都要回表；有 ICP 时，在索引层就能过滤掉 age ≠ 25 的记录，只有姓张且 age=25 的才回表",
+      "EXPLAIN 中 Extra 列显示 Using index condition 表示使用了索引下推。ICP 默认开启，可通过 SET optimizer_switch='index_condition_pushdown=off' 关闭",
+      "ICP 的限制：①只适用于二级索引 ②只适用于 InnoDB 和 MyISAM 引擎 ③引用子查询的条件不能下推 ④调用存储函数的条件不能下推"
+    ],
+    "followUp": [
+      "索引下推和覆盖索引有什么关系？（答：如果已经是覆盖索引（Using index），根本不需要回表，ICP 也就没有意义了。ICP 解决的是「无法走覆盖索引但可以在索引层做部分过滤」的场景。两者是互补关系）"
+    ]
+  },
+  {
+    "id": "M2-06",
+    "title": "哪些写法会导致索引失效？隐式类型转换为什么也会导致索引失效？",
+    "category": "索引原理与优化",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "background": "面试高频题。面试官不光要你列举场景，还要解释每种场景失效的底层原因——本质都是「无法定位 B+ 树的搜索起点或破坏了有序性」。",
+    "answerPoints": [
+      "在索引列上使用函数或表达式：如 WHERE YEAR(create_time) = 2024、WHERE id + 1 = 10。B+ 树存的是原始列值，函数/表达式的结果无法与 B+ 树中的值做比较定位。解决方案：改写为 WHERE create_time >= '2024-01-01' AND create_time < '2025-01-01'",
+      "隐式类型转换：如 WHERE varchar_col = 123（字符串列和数字比较）。MySQL 的规则是将字符串转为数字，相当于 WHERE CAST(varchar_col AS signed) = 123，本质上是在索引列上加了函数，索引失效。反过来 WHERE int_col = '123' 不会失效，因为 MySQL 把 '123' 转为 123，是对常量做转换，不影响索引列",
+      "隐式字符集转换：两表 JOIN 时如果字符集不同（如 utf8 和 utf8mb4），MySQL 会对低级别字符集的列做 CONVERT 转换，相当于在索引列上加了函数，导致索引失效",
+      "LIKE 以通配符开头：WHERE name LIKE '%三' 或 LIKE '%三%'，无法定位 B+ 树的搜索起点，只能全表扫描。LIKE '张%' 可以定位到 '张' 开头的范围",
+      "OR 条件：WHERE a = 1 OR b = 2，如果 a 有索引但 b 没有，整个查询走全表扫描。因为即使通过索引找到 a=1 的行，还是要全表扫描找 b=2 的行。解决方案：给 b 也加索引，MySQL 可以分别走两个索引然后做 index_merge",
+      "不满足最左前缀：联合索引 (a,b,c) 中查 WHERE b=1，跳过了 a 列",
+      "使用 NOT、!=、<>、NOT IN：否定条件通常无法利用索引的有序性进行范围扫描（优化器可能认为满足条件的行太多，走索引不如全表扫描）。但这不是绝对的，如果满足条件的行很少，优化器仍可能选择索引"
+    ],
+    "codeExample": {
+      "code": "-- 索引列 phone VARCHAR(20)\n\n-- ❌ 隐式类型转换导致索引失效\nSELECT * FROM users WHERE phone = 13800138000;\n-- 等价于 WHERE CAST(phone AS signed) = 13800138000\n\n-- ✅ 正确写法\nSELECT * FROM users WHERE phone = '13800138000';\n\n-- ❌ 函数导致索引失效\nSELECT * FROM orders WHERE DATE(create_time) = '2024-01-01';\n\n-- ✅ 改写为范围查询\nSELECT * FROM orders WHERE create_time >= '2024-01-01'\n  AND create_time < '2024-01-02';",
+      "language": "sql",
+      "explanation": "隐式类型转换的核心：MySQL 的类型转换规则是字符串→数字，所以字符串列与数字比较时，是对列做 CAST，索引失效。"
+    },
+    "followUp": [
+      "怎么快速发现线上 SQL 是否存在索引失效？（答：①开启慢查询日志 ②用 pt-query-digest 分析慢查询日志找出高频慢 SQL ③对慢 SQL 逐条 EXPLAIN 查看执行计划 ④检查 type 列是否为 ALL 或 index、rows 是否过大）"
+    ]
+  },
+  {
+    "id": "M2-07",
+    "title": "EXPLAIN 执行计划的关键字段怎么看？type 从好到差排什么序？",
+    "category": "索引原理与优化",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "answerPoints": [
+      "EXPLAIN 是 SQL 调优最重要的工具。核心要看的字段：type（访问类型）、key（实际使用的索引）、key_len（索引使用长度）、rows（估算扫描行数）、Extra（额外信息）",
+      "type 字段从好到差排序：system > const > eq_ref > ref > range > index > ALL。system 是表只有一行的特殊情况；const 是主键/唯一索引等值查询，最多一行；eq_ref 是 JOIN 中对驱动表的每一行在被驱动表上做主键/唯一索引等值查询；ref 是非唯一索引等值查询；range 是索引范围扫描（>、<、BETWEEN、IN）；index 是全索引扫描（扫描整棵索引树）；ALL 是全表扫描",
+      "key_len 用于判断联合索引用了几个字段：int 占 4 字节，bigint 占 8 字节，varchar(n) 在 utf8mb4 下占 4n+2 字节（4n 是字符最大字节数，2 是变长字段长度头），可 NULL 的列额外 +1 字节",
+      "rows 是优化器估算的扫描行数（不是精确值），rows 越小越好。filtered 是经过 WHERE 条件过滤后的行百分比，filtered 越高说明过滤效率越好",
+      "Extra 字段关键值：Using index（覆盖索引）、Using index condition（索引下推 ICP）、Using where（Server 层过滤，说明存储引擎返回的行还需要二次过滤）、Using filesort（额外排序，未利用索引排序）、Using temporary（使用了临时表，常见于 GROUP BY 和 DISTINCT）",
+      "MySQL 8.0 新增 EXPLAIN ANALYZE：实际执行查询并返回每个步骤的真实耗时、真实行数，比 EXPLAIN 的估算值更准确，适合深度调优"
+    ],
+    "codeExample": {
+      "code": "EXPLAIN SELECT * FROM orders\n  WHERE user_id = 100 AND status = 1\n  ORDER BY create_time DESC\n  LIMIT 10;\n\n-- 关注点：\n-- type: ref 或 range（如果是 ALL 说明索引有问题）\n-- key: 实际用了哪个索引\n-- key_len: 联合索引用了几个字段\n-- rows: 估算扫描行数，越小越好\n-- Extra: 是否有 Using filesort（有的话说明 ORDER BY 没走索引）\n\n-- MySQL 8.0+ 实际执行分析\nEXPLAIN ANALYZE SELECT * FROM orders\n  WHERE user_id = 100 AND status = 1\n  ORDER BY create_time DESC\n  LIMIT 10;",
+      "language": "sql",
+      "explanation": "EXPLAIN ANALYZE 是 MySQL 8.0 引入的实际执行分析，能看到每一步的真实耗时和行数。"
+    },
+    "followUp": [
+      "type 为 index 和 ALL 都是全扫描，有什么区别？（答：index 是全索引扫描，扫描整棵索引 B+ 树但不需要回表（比如覆盖索引场景）；ALL 是全表扫描，扫描聚簇索引的所有数据页。index 通常比 ALL 好一点因为索引比数据小，但两者都不理想）"
+    ]
+  },
+  {
+    "id": "M2-08",
+    "title": "前缀索引是什么？怎么选择合适的前缀长度？有什么局限性？",
+    "category": "索引原理与优化",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "answerPoints": [
+      "前缀索引是对字符串列的前 N 个字符建立索引，而非整个字符串。语法：ALTER TABLE t ADD INDEX idx_col(col(N))。目的是减少索引的存储空间和提升索引效率，特别是对于很长的字符串列（如 URL、邮箱地址）",
+      "选择前缀长度的方法：通过计算不同前缀长度的区分度，选择区分度足够高的最短前缀。区分度 = COUNT(DISTINCT LEFT(col, N)) / COUNT(*)，一般达到原始列区分度的 95% 以上就够了",
+      "前缀索引的局限性：①无法用于 ORDER BY——前缀索引存的不是完整值，无法保证完整值的排序顺序 ②无法用于 GROUP BY——理由同上 ③无法做覆盖索引——前缀索引不包含完整列值，查询该列时必须回表 ④无法用于全值匹配——如果查询条件的值长度超过前缀长度，可能产生误匹配需要回表验证",
+      "前缀索引的替代方案：①对于邮箱类字段，可以存一个 hash 列（如 crc32(email)），对 hash 列建索引，等值查询非常高效 ②如果字符串前缀区分度很低但后缀区分度高（如身份证号前 6 位是地区码），可以存反转后的字符串建索引，或者用后几位建索引"
+    ],
+    "codeExample": {
+      "code": "-- 计算不同前缀长度的区分度\nSELECT\n  COUNT(DISTINCT LEFT(email, 4)) / COUNT(*) AS sel_4,\n  COUNT(DISTINCT LEFT(email, 7)) / COUNT(*) AS sel_7,\n  COUNT(DISTINCT LEFT(email, 10)) / COUNT(*) AS sel_10,\n  COUNT(DISTINCT email) / COUNT(*) AS sel_full\nFROM users;\n-- 假设结果：sel_4=0.65, sel_7=0.92, sel_10=0.98, sel_full=0.99\n-- 选择 7 或 10 作为前缀长度（在区分度和空间之间权衡）\n\n-- 创建前缀索引\nALTER TABLE users ADD INDEX idx_email(email(7));",
+      "language": "sql",
+      "explanation": "通过 COUNT(DISTINCT LEFT(col, N)) / COUNT(*) 计算不同前缀长度的选择性，找到性价比最高的前缀长度。"
+    },
+    "followUp": [
+      "身份证号怎么建索引最合适？（答：前 6 位是地区码区分度低，直接建前缀索引效果差。方案 ①建完整索引 ②存后 6 位建索引 ③存 hash 值建索引 ④MySQL 8.0+ 用函数索引 ALTER TABLE ADD INDEX idx(REVERSE(id_card(12)))）"
+    ]
+  },
+  {
+    "id": "M2-09",
+    "title": "MySQL 8.0 的函数索引、降序索引和不可见索引分别解决了什么问题？",
+    "category": "索引原理与优化",
+    "categoryId": 2,
+    "level": "L3",
+    "answerPoints": [
+      "函数索引（Functional Index，MySQL 8.0.13+）：可以对列的表达式/函数结果建索引，解决了「索引列使用函数导致索引失效」的经典问题。实现原理是基于虚拟列（Generated Column），MySQL 自动创建一个隐藏的虚拟列存储函数结果，对虚拟列建 B+ 树索引。语法：ALTER TABLE t ADD INDEX idx((UPPER(name)))",
+      "降序索引（Descending Index，MySQL 8.0）：8.0 之前虽然语法支持 DESC，但实际存储仍是升序，DESC 排序时需要反向扫描。8.0 开始真正支持降序存储的 B+ 树。解决的问题：联合索引 (a ASC, b DESC) 的排序场景——WHERE a > 10 ORDER BY a ASC, b DESC，8.0 前需要 filesort，8.0 可以直接利用索引的顺序",
+      "不可见索引（Invisible Index，MySQL 8.0）：将索引标记为不可见后，优化器不会使用该索引，但索引仍然被维护（INSERT/UPDATE/DELETE 仍会更新索引）。这是一种「软删除」机制——删索引前先设为不可见，观察一段时间确认没有性能影响再真正删除，避免误删索引导致线上故障",
+      "不可见索引的操作：ALTER TABLE t ALTER INDEX idx INVISIBLE / VISIBLE。查看：SHOW INDEX FROM t 中 Visible 列。注意主键不能设为不可见",
+      "MySQL 8.0 还引入了：①EXPLAIN ANALYZE 实际执行分析 ②直方图（Histogram）统计信息，帮助优化器更准确地估算列值分布 ③Index Skip Scan，突破联合索引最左前缀限制 ④Hash Join 替代 BNL（Block Nested Loop）"
+    ],
+    "codeExample": {
+      "code": "-- 函数索引：解决索引列使用函数导致索引失效的问题\nALTER TABLE users ADD INDEX idx_upper_name((UPPER(name)));\nSELECT * FROM users WHERE UPPER(name) = 'JOHN'; -- 可以走索引\n\n-- 降序索引：混合排序场景\nALTER TABLE orders ADD INDEX idx_user_time(user_id ASC, create_time DESC);\nSELECT * FROM orders WHERE user_id = 100 ORDER BY create_time DESC;\n-- 8.0: 直接走索引排序，无 filesort\n\n-- 不可见索引：安全删除索引\nALTER TABLE users ALTER INDEX idx_email INVISIBLE; -- 标记为不可见\n-- 观察几天，确认无性能影响\nALTER TABLE users DROP INDEX idx_email;            -- 安全删除",
+      "language": "sql",
+      "explanation": "函数索引避免改写 SQL，降序索引解决混合排序，不可见索引提供安全的索引删除流程。"
+    },
+    "followUp": [
+      "直方图（Histogram）是什么？什么时候需要手动创建？（答：直方图存储列值的分布统计信息，帮助优化器更准确地估算 WHERE 条件的过滤比例。适用于数据分布不均匀的列——比如 status 列 99% 是 'active'，1% 是 'deleted'，没有直方图时优化器可能高估 'deleted' 的行数而选择全表扫描。语法：ANALYZE TABLE t UPDATE HISTOGRAM ON col）"
+    ]
+  },
+  {
+    "id": "M2-10",
+    "title": "索引设计的核心原则是什么？区分度、选择性、字段顺序怎么考虑？",
+    "category": "索引原理与优化",
+    "categoryId": 2,
+    "level": "L3",
+    "background": "高级面试题。不是考你知不知道最左前缀，而是考你在真实业务场景下如何权衡多个因素来设计最优索引方案。",
+    "answerPoints": [
+      "区分度/选择性（Selectivity）：区分度 = COUNT(DISTINCT col) / COUNT(*)，取值 0~1，越接近 1 说明值越分散、索引过滤效果越好。区分度低的列（如性别、状态）单独建索引意义不大，但作为联合索引的一部分仍有价值",
+      "联合索引字段顺序设计原则：①等值查询条件放最前面（充分利用最左前缀）②区分度高的等值条件优先（同样的索引空间过滤更多数据）③范围查询条件放在等值条件后面（范围查询会截断后续字段）④ORDER BY/GROUP BY 字段放在最后（利用索引排序避免 filesort）",
+      "三星索引理论：一星——WHERE 条件列匹配索引列（减少扫描行数）。二星——索引列顺序与 ORDER BY 一致（避免排序）。三星——索引包含查询所有列（覆盖索引避免回表）。实际中很难同时满足三星，需要根据业务权衡",
+      "索引数量控制：每个索引都有维护成本（INSERT/UPDATE/DELETE 时需要更新所有相关索引）。建议单表索引不超过 5~6 个，联合索引字段不超过 5 个。过多的索引会严重拖慢写入性能",
+      "索引合并（Index Merge）：当单个索引无法满足查询时，MySQL 可能对多个索引分别查询再合并结果。但 Index Merge 通常不如一个设计良好的联合索引高效。看到 EXPLAIN 中 type 为 index_merge 时，应该考虑是否能设计一个联合索引替代",
+      "前缀冗余：索引 (a, b) 已经包含了索引 (a) 的功能，此时单独的索引 (a) 是冗余的。但 (a, b) 不能替代 (b, a)。通过 pt-duplicate-key-checker 或 sys.schema_redundant_indexes 可以检测冗余索引"
+    ],
+    "followUp": [
+      "怎么判断一个索引有没有被使用过？（答：MySQL 5.7+ 查询 sys.schema_unused_indexes 视图，或 performance_schema.table_io_waits_summary_by_index_usage 中统计各索引的使用次数。长期未使用的索引应该清理掉）",
+      "生产环境怎么安全地添加索引？（答：①使用 Online DDL（ALGORITHM=INPLACE/INSTANT）②对大表用 gh-ost 或 pt-osc ③先在从库测试验证 EXPLAIN ④使用 MySQL 8.0 的不可见索引验证效果后再设为可见）"
+    ]
+  }
+]

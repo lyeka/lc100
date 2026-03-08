@@ -1,0 +1,163 @@
+[
+  {
+    "id": "M1-01",
+    "title": "MySQL 一条查询语句从客户端发送到返回结果，中间经过了哪些环节？",
+    "category": "基础架构与存储引擎",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "background": "这是 MySQL 面试的第一道菜。面试官想看你是否理解 MySQL 的分层架构，而不只是会写 SQL。回答时要把连接器、分析器、优化器、执行器、存储引擎的职责链讲清楚。",
+    "answerPoints": [
+      "MySQL 架构分为 Server 层和存储引擎层。Server 层包含连接器、查询缓存（8.0 已移除）、分析器、优化器、执行器；存储引擎层负责数据的存储与读取，InnoDB 是默认引擎",
+      "连接器负责身份认证和权限校验。客户端通过 TCP 三次握手建立连接后，连接器验证用户名密码，然后从权限表读取该用户的所有权限，此后这个连接里的权限判断都基于此时读到的权限（即使管理员中途修改了权限，已有连接不受影响）",
+      "分析器做词法分析和语法分析：词法分析把 SQL 字符串识别为关键字、表名、列名等 token；语法分析根据 MySQL 语法规则判断 SQL 是否合法，生成语法树（AST）。语法错误在这一步报出",
+      "优化器决定执行方案：当有多个索引可选时决定使用哪个索引；当有多表 JOIN 时决定表的连接顺序。优化器基于成本模型（Cost-Based Optimizer）估算各方案的 IO 和 CPU 代价，选择代价最小的执行计划",
+      "执行器先做权限校验（检查对该表是否有查询权限），然后调用存储引擎的接口逐行读取数据、判断是否满足 WHERE 条件、将满足条件的行加入结果集返回给客户端",
+      "查询缓存（8.0 前）：SQL 语句作为 key 查缓存，命中则直接返回。但由于表的任何更新都会导致该表所有缓存失效，命中率极低，MySQL 8.0 已完全移除此功能"
+    ],
+    "followUp": [
+      "长连接和短连接有什么区别？MySQL 长连接为什么会占用大量内存？怎么解决？（答：长连接在连接期间申请的临时内存在连接断开时才释放。解决方案：①定期断开重连 ②MySQL 5.7+ 执行 mysql_reset_connection 重新初始化连接资源，不需要重连和权限校验）",
+      "MySQL 8.0 为什么要移除查询缓存？（答：查询缓存的失效粒度是表级别，只要表有更新，所有缓存全部失效。对于更新频繁的表几乎没有命中的机会，而维护缓存本身还有加锁开销，弊大于利）"
+    ]
+  },
+  {
+    "id": "M1-02",
+    "title": "一条 UPDATE 语句的完整执行流程是什么？涉及哪些日志和缓冲组件？",
+    "category": "基础架构与存储引擎",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "background": "面试官通常用 UPDATE 来考察你对 InnoDB 写入路径的理解，特别是 redo log、undo log、binlog 三者的协作关系，以及 Buffer Pool 脏页的概念。",
+    "answerPoints": [
+      "UPDATE 语句的前半段（连接器→分析器→优化器→执行器）和 SELECT 一样。区别在于执行器调用存储引擎接口时走的是写入路径",
+      "执行器先调用引擎接口找到目标行：如果行所在的数据页在 Buffer Pool 中则直接读取，否则从磁盘读入 Buffer Pool。这一步可能涉及索引查找",
+      "InnoDB 在修改数据前，先将旧值写入 undo log（用于事务回滚和 MVCC），然后在 Buffer Pool 中修改数据页（此时该页成为脏页），同时将修改操作写入 redo log buffer",
+      "执行器生成这条更新操作的 binlog 并写入 binlog cache。binlog 是 Server 层的日志，用于主从复制和数据恢复",
+      "事务提交时采用两阶段提交：①先将 redo log 刷盘并标记为 prepare 状态 ②将 binlog 刷盘 ③将 redo log 标记为 commit 状态。两阶段提交保证了 redo log 和 binlog 的一致性",
+      "脏页不会立即写入磁盘，而是由后台线程（Page Cleaner Thread）在合适时机将脏页刷盘（flush），这就是 WAL（Write-Ahead Logging）的核心思想——先写日志再写数据页"
+    ],
+    "followUp": [
+      "如果 UPDATE 没有命中索引，InnoDB 会怎么处理？（答：如果没有合适的索引，InnoDB 会做全表扫描，对扫描到的每一行加行锁再判断是否满足 WHERE 条件。不满足的行在判断后释放锁（RC 级别）或保持锁直到事务结束（RR 级别），这是为什么不加索引的 UPDATE 会导致锁表的本质原因）",
+      "Buffer Pool 中的脏页什么时候会被刷盘？（答：四种触发时机——① redo log 写满，checkpoint 推进需要刷脏页 ② Buffer Pool 不够用，淘汰的脏页需要先刷盘 ③ MySQL 空闲时后台线程定期刷 ④ MySQL 正常关闭时刷所有脏页）"
+    ]
+  },
+  {
+    "id": "M1-03",
+    "title": "InnoDB 和 MyISAM 有什么本质区别？为什么 InnoDB 成为默认引擎？",
+    "category": "基础架构与存储引擎",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "answerPoints": [
+      "事务支持：InnoDB 支持 ACID 事务（通过 redo log 保证持久性、undo log 保证原子性、锁+MVCC 保证隔离性），MyISAM 不支持事务",
+      "锁粒度：InnoDB 支持行级锁（通过索引实现），并发度高；MyISAM 只支持表级锁，读写互斥，并发性能差。这是 InnoDB 取代 MyISAM 的最关键原因",
+      "崩溃恢复：InnoDB 通过 redo log 实现 crash-safe，数据库崩溃后可以恢复到一致状态；MyISAM 崩溃后需要手动修复表（myisamchk），且可能丢失数据",
+      "索引结构：两者都用 B+ 树，但 InnoDB 的主键索引是聚簇索引（叶子节点存完整行数据），MyISAM 是非聚簇索引（叶子节点存数据行的物理地址/行号）。InnoDB 的二级索引叶子节点存主键值，需要回表；MyISAM 的所有索引都直接指向数据行",
+      "外键支持：InnoDB 支持外键约束，MyISAM 不支持",
+      "MVCC：InnoDB 通过 MVCC 实现非锁定读，读写不互相阻塞；MyISAM 没有 MVCC，读取时需要加共享锁",
+      "存储方式：InnoDB 用 .ibd 文件存储数据和索引（表空间），MyISAM 用 .MYD（数据）和 .MYI（索引）分开存储。MyISAM 的 count(*) 无 WHERE 时可以直接返回行数（因为维护了行计数器），InnoDB 需要全表扫描"
+    ],
+    "followUp": [
+      "既然 InnoDB 全面优于 MyISAM，MyISAM 还有什么使用场景吗？（答：极少。历史遗留系统、只读或读多写极少且不需要事务的场景。MySQL 8.0 已经将系统表也从 MyISAM 迁移到了 InnoDB，MyISAM 正在被逐步淘汰）"
+    ]
+  },
+  {
+    "id": "M1-04",
+    "title": "Buffer Pool 的工作原理是什么？为什么不用简单 LRU 而用改进版？",
+    "category": "基础架构与存储引擎",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "background": "Buffer Pool 是 InnoDB 性能的核心。面试官通过这道题考察你对内存管理和缓存淘汰策略的理解深度。",
+    "answerPoints": [
+      "Buffer Pool 是 InnoDB 在内存中开辟的一块区域，用于缓存从磁盘读取的数据页和索引页。默认大小 128MB（生产环境通常设置为物理内存的 60%~80%）。MySQL 的增删改查都在 Buffer Pool 中完成，避免每次都读写磁盘",
+      "Buffer Pool 以页（Page，默认 16KB）为单位管理内存。包含数据页、索引页、undo 页、插入缓冲页、自适应哈希索引等多种页类型",
+      "简单 LRU 的问题：①预读失效——InnoDB 的预读机制会提前加载相邻页，但这些页可能根本不会被访问，却占据了 LRU 头部，导致真正热点数据被淘汰 ②Buffer Pool 污染——全表扫描会大量加载冷数据页，把真正的热点数据全部挤出去",
+      "InnoDB 的改进方案：将 LRU 链表分为 young 区域（热数据，占 5/8）和 old 区域（冷数据，占 3/8）。新页首先放入 old 区域的头部，只有在 old 区域停留超过 innodb_old_blocks_time（默认 1000ms）后再次被访问，才会移动到 young 区域。这样全表扫描加载的页不会进入 young 区域，保护了热点数据",
+      "Buffer Pool 还有 Free List（空闲页链表）和 Flush List（脏页链表）。Free List 管理未使用的页，Flush List 按修改时间排序脏页以便后台线程按序刷盘"
+    ],
+    "codeExample": {
+      "code": "-- 查看 Buffer Pool 状态\nSHOW ENGINE INNODB STATUS\\G\n-- 关键指标：\n-- Buffer pool hit rate: 命中率，生产环境应 > 99%\n-- Pages made young / not young: young 区和 old 区的页面调度情况\n\n-- 查看 Buffer Pool 大小配置\nSHOW VARIABLES LIKE 'innodb_buffer_pool_size';\n\n-- 查看 old 区域占比和停留时间\nSHOW VARIABLES LIKE 'innodb_old_blocks_pct';    -- 默认 37（即 3/8）\nSHOW VARIABLES LIKE 'innodb_old_blocks_time';   -- 默认 1000ms",
+      "language": "sql",
+      "explanation": "通过 SHOW ENGINE INNODB STATUS 可以查看 Buffer Pool 命中率和页面调度情况，判断是否需要调整 Buffer Pool 大小或 old 区域参数。"
+    },
+    "followUp": [
+      "Buffer Pool 可以设置多个实例吗？为什么？（答：可以通过 innodb_buffer_pool_instances 设置多个实例（默认 1 个，建议设 CPU 核数）。多实例可以减少并发访问时对 LRU 链表的锁竞争，提高并发性能。每个实例独立管理自己的 Free/LRU/Flush List）",
+      "Buffer Pool 的预热（warmup）是怎么做的？（答：MySQL 5.6+ 支持关闭时将 Buffer Pool 中的页面信息转储到磁盘（innodb_buffer_pool_dump_at_shutdown），重启时自动加载（innodb_buffer_pool_load_at_startup），避免重启后的冷启动性能下降）"
+    ]
+  },
+  {
+    "id": "M1-05",
+    "title": "InnoDB 的数据页结构是怎样的？一页能存多少条记录？行格式有什么区别？",
+    "category": "基础架构与存储引擎",
+    "categoryId": 1,
+    "level": "L3",
+    "background": "这道题考察你对 InnoDB 物理存储层的理解。能答到数据页内部结构和行格式差异说明你真的看过 InnoDB 的实现。",
+    "answerPoints": [
+      "InnoDB 数据页（Data Page）大小默认 16KB，是 InnoDB 管理存储空间的最小单位。页内结构包含：File Header（38字节，页号/校验和/前后页指针）、Page Header（56字节，页内记录数/堆顶位置等）、Infimum+Supremum 记录（虚拟最小最大记录）、User Records（实际数据行）、Free Space、Page Directory（稀疏目录，用于页内二分查找）、File Trailer（8字节，用于校验页完整性）",
+      "页内记录通过单链表按主键顺序连接（next_record 指针）。Page Directory 把记录分组（每组 4~8 条记录），存储每组最大记录的偏移量，查找时先对 Page Directory 做二分查找定位到组，再在组内遍历链表",
+      "一页能存多少条记录取决于行大小。假设一行 100 字节，16KB 页面除去页头页尾等固定开销（约 200 字节），大约能存 150+ 行。InnoDB 要求一页至少存 2 行（否则 B+ 树退化为链表），所以单行最大约 8KB",
+      "行格式（Row Format）有四种：REDUNDANT（老格式，MySQL 5.0 前）、COMPACT（默认，MySQL 5.0+）、DYNAMIC（MySQL 5.7+ 默认）、COMPRESSED（支持压缩）。核心区别在于变长字段和溢出列的处理方式",
+      "COMPACT 格式：每行包含变长字段长度列表（逆序）、NULL 标志位、记录头信息（5字节，含 delete_mask/next_record 等）、隐藏列（row_id/trx_id/roll_pointer）、实际列数据。大字段（超过页大小）存前 768 字节在本页，其余存到溢出页",
+      "DYNAMIC 格式：与 COMPACT 类似，但溢出列只在本页存 20 字节指针，数据全部存到溢出页，这样本页能存更多行。DYNAMIC 是 MySQL 5.7+ 的默认行格式"
+    ],
+    "followUp": [
+      "为什么 InnoDB 要求一页至少存 2 条记录？（答：如果一页只存一条记录，B+ 树就退化成了链表，失去了 B+ 树的搜索优势。所以 InnoDB 要求单行数据不能超过页大小的一半，超出的部分必须存到溢出页）",
+      "varchar(255) 和 varchar(256) 有什么存储差异？（答：变长字段长度列表中，字段最大长度 ≤ 255 字节用 1 字节记录长度，> 255 字节用 2 字节。所以 varchar(255) 在 latin1 下长度字段只占 1 字节，varchar(256) 需要 2 字节）"
+    ]
+  },
+  {
+    "id": "M1-06",
+    "title": "Change Buffer 是什么？为什么唯一索引不能用 Change Buffer？",
+    "category": "基础架构与存储引擎",
+    "categoryId": 1,
+    "level": "L2/L3",
+    "background": "这道题表面考 Change Buffer，实际是在考「唯一索引 vs 普通索引」的写性能差异。面试官经常通过这个切入来考察你对 InnoDB 写路径优化的理解。",
+    "answerPoints": [
+      "Change Buffer 是 InnoDB 的一种写优化机制：当需要修改一个二级索引页但该页不在 Buffer Pool 中时，不立即从磁盘读入，而是将修改操作缓存到 Change Buffer 中。等到下次有读请求需要访问该页时，再将该页读入内存并合并（merge）Change Buffer 中的操作",
+      "Change Buffer 的价值：将随机磁盘 IO 转化为顺序写 + 延迟合并，大幅减少磁盘 IO。对于写多读少的场景（如日志表），Change Buffer 效果显著",
+      "唯一索引不能用 Change Buffer 的原因：插入唯一索引时必须检查唯一性约束（是否存在重复值），这个检查必须读取数据页到内存中才能完成。既然数据页已经在内存中了，就直接更新即可，没有「缓存修改操作等后续合并」的必要",
+      "普通索引的插入：如果页在 Buffer Pool 中，直接更新；如果不在，将更新记录到 Change Buffer，返回。这省去了一次磁盘随机读。而唯一索引的插入：无论页是否在 Buffer Pool 中，都必须读到内存来做唯一性校验",
+      "Change Buffer 占 Buffer Pool 空间，由 innodb_change_buffer_max_size 控制（默认 25%，最大 50%）。支持缓存的操作类型由 innodb_change_buffering 控制（默认 all，可选 inserts/deletes/changes/purges/none）",
+      "合并（merge）时机：①访问该数据页时 ②后台线程定期 merge ③数据库关闭时 ④redo log 写满 checkpoint 时"
+    ],
+    "followUp": [
+      "如果业务能保证不会插入重复数据，那建唯一索引和普通索引选哪个性能更好？（答：普通索引。因为普通索引能利用 Change Buffer 减少随机磁盘 IO，而唯一索引必须每次读页校验。从查询角度差异可忽略（找到满足条件的第一条后，普通索引多判断一次 next record），所以如果业务层已保证唯一性，建普通索引写性能更好）",
+      "Change Buffer 的前身 Insert Buffer 有什么区别？（答：MySQL 5.5 之前只有 Insert Buffer，只能缓存 INSERT 操作。5.5 开始升级为 Change Buffer，支持 INSERT、DELETE、UPDATE 的缓存操作）"
+    ]
+  },
+  {
+    "id": "M1-07",
+    "title": "Double Write（两次写）机制是怎么保证数据页完整性的？",
+    "category": "基础架构与存储引擎",
+    "categoryId": 1,
+    "level": "L3",
+    "background": "面试官想看你能否区分 redo log 解决的问题（事务持久性）和 Double Write 解决的问题（部分写失效）。这两者经常被混淆。",
+    "answerPoints": [
+      "问题背景——部分写失效（Partial Page Write）：InnoDB 数据页 16KB，操作系统的 IO 单位是 4KB。如果数据页刷盘过程中发生断电，可能只写了 4KB/8KB/12KB，导致磁盘上的页是不完整的「撕裂页」",
+      "为什么 redo log 不能解决这个问题？redo log 记录的是对数据页的增量修改（如「在第 5 页偏移量 100 处写入 xxx」），它的前提是页本身是完整的。如果页已经损坏，redo log 的增量修改应用到损坏页上得到的结果也是错误的",
+      "Double Write 的工作原理：刷脏页时，先将脏页数据复制到内存中的 Double Write Buffer（2MB），然后将 Double Write Buffer 的内容顺序写入共享表空间的 Double Write 区域（磁盘上连续的 2MB 空间，分两次写入各 1MB），fsync 确保落盘。最后再将脏页写入各自的表空间文件（离散写）",
+      "崩溃恢复时：InnoDB 先检查数据页的校验和（checksum），如果发现页损坏，就从 Double Write 区域找到该页的完整副本进行恢复，然后再应用 redo log。如果 Double Write 区域的页也不完整，说明写 Double Write 时就崩溃了，此时原始数据页未被修改，仍是完整的，直接用原页 + redo log 恢复即可",
+      "性能影响：Double Write 是顺序写（连续 2MB），性能开销约 5%~10%。相比数据完整性的保障，这个代价完全值得。可通过 innodb_doublewrite 参数关闭（不推荐）",
+      "为什么 redo log 本身不需要 Double Write？因为 redo log 的写入单位是 512 字节（一个磁盘扇区大小），扇区写入是原子的，不存在部分写失效问题"
+    ],
+    "followUp": [
+      "如果底层文件系统本身就支持原子写（如 ZFS），还需要 Double Write 吗？（答：不需要。如果存储层能保证 16KB 的原子写，就没有部分写失效问题，可以安全关闭 Double Write 以提升性能。一些高端 SSD/存储设备也支持原子写）"
+    ]
+  },
+  {
+    "id": "M1-08",
+    "title": "自适应哈希索引是什么？什么条件下 InnoDB 会自动创建它？",
+    "category": "基础架构与存储引擎",
+    "categoryId": 1,
+    "level": "L3",
+    "background": "InnoDB 三大特性之一（Change Buffer、Double Write、Adaptive Hash Index）。面试官考察你对 InnoDB 自动优化机制的理解。",
+    "answerPoints": [
+      "自适应哈希索引（AHI）是 InnoDB 内部维护的哈希表，用于加速 Buffer Pool 中热点页的等值查找。它是建立在 B+ 树索引之上的「索引的索引」——将频繁访问的索引键值映射到数据页位置，把 B+ 树的 O(logN) 查找降为 O(1)",
+      "AHI 完全由 InnoDB 自动管理，DBA 无法手动创建或指定。InnoDB 会监控索引页的访问模式，当检测到某个索引页被以相同的查询模式（等值查询）连续访问达到一定次数时，自动为该页的索引键值建立哈希索引",
+      "触发条件：①该索引页被同一查询模式连续访问了 N 次（由 InnoDB 内部自适应算法决定阈值）②该索引页的等值查询命中率较高。只对等值查询（= 和 IN）有效，范围查询、LIKE、ORDER BY 等无法利用 AHI",
+      "AHI 存储在 Buffer Pool 中，占用缓冲池内存。在某些工作负载下（如高并发等值查询），AHI 能显著提升性能；但在某些场景下（如大量范围查询、频繁更新导致 AHI 频繁重建），AHI 反而是负担",
+      "可通过 innodb_adaptive_hash_index 参数开启/关闭（默认开启）。MySQL 5.7+ 支持分区 AHI（innodb_adaptive_hash_index_parts，默认 8），减少并发访问时的锁竞争",
+      "通过 SHOW ENGINE INNODB STATUS 的 INSERT BUFFER AND ADAPTIVE HASH INDEX 部分可以查看 AHI 的命中率和使用情况，据此判断是否应该关闭 AHI"
+    ],
+    "followUp": [
+      "什么场景下应该关闭自适应哈希索引？（答：① AHI 命中率很低（通过 SHOW ENGINE INNODB STATUS 查看 hash searches/s vs non-hash searches/s）② 大量范围查询的 OLAP 场景 ③ 高并发写入导致 AHI 频繁重建的场景）"
+    ]
+  }
+]

@@ -1,0 +1,197 @@
+[
+  {
+    "id": "M5-01",
+    "title": "慢查询怎么定位和分析？从发现到解决的完整排查流程是什么？",
+    "category": "SQL优化与执行",
+    "categoryId": 5,
+    "level": "L2/L3",
+    "background": "SQL 优化是后端开发最常遇到的性能问题。面试官想看你有没有系统化的排查方法论，而不是靠猜。",
+    "answerPoints": [
+      "第一步——开启慢查询日志定位问题 SQL：SET GLOBAL slow_query_log = ON; SET GLOBAL long_query_time = 1;（记录执行超过 1 秒的 SQL）。日志文件位置通过 slow_query_log_file 查看",
+      "第二步——分析慢查询日志：使用 mysqldumpslow 或 pt-query-digest 工具分析日志。pt-query-digest 更强大，能按查询模式分组、统计执行次数、平均时间、最慢时间、扫描行数等，定位最高频最耗时的 SQL 模式",
+      "第三步——EXPLAIN 分析执行计划：对定位到的慢 SQL 做 EXPLAIN，重点看 type（ALL/index 都不好）、key（是否用了索引）、rows（扫描行数）、Extra（有无 filesort/temporary）。MySQL 8.0 可用 EXPLAIN ANALYZE 获取实际执行数据",
+      "第四步——针对性优化：① 索引缺失 → 添加索引 ② 索引失效 → 改写 SQL（避免函数/类型转换）③ 回表代价高 → 覆盖索引或延迟关联 ④ filesort → 调整 ORDER BY 利用索引 ⑤ 数据量过大 → 分页优化/分表 ⑥ 锁等待 → 检查事务和锁冲突",
+      "第五步——验证和监控：优化后重新 EXPLAIN 确认改善效果，上线后持续监控慢查询日志。结合 Performance Schema 和 sys 库的视图做长期监控"
+    ],
+    "codeExample": {
+      "code": "-- 开启慢查询日志\nSET GLOBAL slow_query_log = ON;\nSET GLOBAL long_query_time = 1; -- 超过 1 秒的记录\nSET GLOBAL log_queries_not_using_indexes = ON; -- 记录未使用索引的查询\n\n-- 查看慢查询日志位置\nSHOW VARIABLES LIKE 'slow_query_log_file';\n\n-- pt-query-digest 分析（命令行工具）\n-- pt-query-digest /var/log/mysql/slow.log --limit 10\n\n-- 查看当前正在执行的耗时查询\nSELECT * FROM information_schema.PROCESSLIST\n  WHERE COMMAND != 'Sleep' AND TIME > 5\n  ORDER BY TIME DESC;",
+      "language": "sql",
+      "explanation": "慢查询排查是一个系统工程：开启日志 → 汇总分析 → EXPLAIN 诊断 → 针对性优化 → 验证效果。"
+    },
+    "followUp": [
+      "Performance Schema 和 sys 库能做什么？（答：Performance Schema 是 MySQL 内置的性能监控框架，记录了 SQL 执行的详细指标。sys 库是对 Performance Schema 的封装，提供了更友好的视图，如 sys.statements_with_full_table_scans 找全表扫描的 SQL、sys.schema_unused_indexes 找未使用的索引、sys.innodb_lock_waits 查看锁等待）"
+    ]
+  },
+  {
+    "id": "M5-02",
+    "title": "EXPLAIN 中 type 字段从好到差怎么排？Extra 字段中 Using filesort 和 Using temporary 意味着什么？",
+    "category": "SQL优化与执行",
+    "categoryId": 5,
+    "level": "L2/L3",
+    "answerPoints": [
+      "type 字段表示访问类型，从好到差排序：system（表只有一行）> const（主键/唯一索引常量等值查询）> eq_ref（JOIN 中被驱动表主键/唯一索引等值匹配）> ref（非唯一索引等值查询）> range（索引范围扫描）> index（全索引扫描）> ALL（全表扫描）",
+      "补充类型：ref_or_null（ref + 额外查 NULL 值）、index_merge（多索引合并）、fulltext（全文索引）、unique_subquery / index_subquery（子查询优化）",
+      "Using filesort：查询需要排序但无法利用索引的有序性，MySQL 必须额外做排序操作。filesort 不一定用文件——数据量小时在内存中排（sort_buffer_size），超过 sort buffer 大小才用磁盘临时文件归并排序。filesort 说明 ORDER BY 没有走索引，是优化重点",
+      "Using temporary：MySQL 需要创建临时表来存储中间结果，常见于 GROUP BY（分组列没有索引）、DISTINCT、UNION、某些子查询。临时表优先在内存中创建（tmp_table_size / max_heap_table_size 限制），超过大小后转为磁盘临时表（性能急剧下降）",
+      "Extra 中的其他关键值：Using index（覆盖索引，好）、Using index condition（索引下推 ICP，好）、Using where（Server 层过滤，说明引擎层返回了多余行）、Using join buffer（JOIN 没有索引，使用了 join buffer）、Impossible WHERE（WHERE 条件永假，优化器直接返回空）"
+    ],
+    "followUp": [
+      "type 为 ALL 时一定是坏的吗？（答：不一定。如果表只有几十行数据，全表扫描的代价可能比走索引更低。优化器是基于成本估算来选择的，小表走 ALL 完全合理。只有大表的 ALL 才需要关注优化）"
+    ]
+  },
+  {
+    "id": "M5-03",
+    "title": "MySQL 的 JOIN 算法有哪几种？NLJ、BNL 和 Hash Join 的原理和适用场景是什么？",
+    "category": "SQL优化与执行",
+    "categoryId": 5,
+    "level": "L2/L3",
+    "answerPoints": [
+      "Nested-Loop Join（NLJ，嵌套循环连接）：对驱动表的每一行，到被驱动表中做索引查找。如果被驱动表上有合适的索引，NLJ 的效率很高——驱动表 N 行 × 被驱动表索引查找 O(logM)，总复杂度 O(N × logM)。这是 MySQL 最常用的 JOIN 算法",
+      "Block Nested-Loop Join（BNL，块嵌套循环）：当被驱动表没有索引时使用。将驱动表的数据批量读入 join_buffer（大小由 join_buffer_size 控制），然后扫描被驱动表与 join_buffer 中的数据做比较。减少了被驱动表的扫描次数（从 N 次降为 N/buffer_size 次）。但仍然是全表扫描级别",
+      "Hash Join（MySQL 8.0.18+）：MySQL 8.0 引入 Hash Join 替代 BNL。当被驱动表没有索引时，对较小的表构建哈希表（build 阶段），然后扫描较大的表在哈希表中做等值匹配（probe 阶段）。Hash Join 的时间复杂度 O(M + N)，远优于 BNL 的 O(M × N)",
+      "MySQL 8.0.20+ 完全移除了 BNL，所有原本走 BNL 的场景都改为 Hash Join。Hash Join 对等值连接（ON a.id = b.id）效果显著，对非等值连接仍然需要嵌套循环",
+      "优化 JOIN 性能的核心：① 小表驱动大表（MySQL 优化器通常会自动选择小表做驱动表）② 被驱动表的 JOIN 列一定要有索引（走 NLJ 而非 BNL/Hash Join）③ 减少 JOIN 返回的数据量（先 WHERE 过滤再 JOIN）"
+    ],
+    "followUp": [
+      "如何确认 JOIN 使用了哪种算法？（答：EXPLAIN 中 Extra 列如果显示 Using join buffer (Block Nested Loop) 或 Using join buffer (hash join) 说明被驱动表没走索引。如果 Extra 没有 join buffer 相关提示，说明走的是 NLJ（索引嵌套循环），这是最理想的情况）",
+      "LEFT JOIN 和 INNER JOIN 在优化器眼里有什么区别？（答：INNER JOIN 时优化器可以自由选择驱动表和被驱动表的顺序（小表驱动大表）；LEFT JOIN 强制左表为驱动表，右表为被驱动表，优化器无法调整顺序。所以如果不需要保留左表未匹配行，用 INNER JOIN 给优化器更多优化空间）"
+    ]
+  },
+  {
+    "id": "M5-04",
+    "title": "子查询为什么可能比 JOIN 慢？MySQL 对子查询做了哪些优化？",
+    "category": "SQL优化与执行",
+    "categoryId": 5,
+    "level": "L2/L3",
+    "answerPoints": [
+      "相关子查询（Correlated Subquery）对外表的每一行都执行一次子查询——如果外表 N 行、子查询扫描 M 行，总复杂度 O(N × M)。而等价的 JOIN 可以利用索引或 Hash Join 降低复杂度",
+      "MySQL 5.5 及之前的经典问题：IN 子查询被优化器改写为 EXISTS 相关子查询执行，导致性能急剧下降。如 WHERE id IN (SELECT id FROM sub_table) 被改写为对外表每一行检查 EXISTS",
+      "MySQL 5.6+ 的子查询优化：① 物化（Materialization）——将子查询结果存入临时表（物化表），对物化表建立哈希索引或 B 树索引，外表查询时走索引匹配。适用于 IN/EXISTS 非相关子查询 ② 半连接（Semi-Join）——将 IN/EXISTS 子查询转换为 JOIN 操作，利用 JOIN 的各种优化算法（NLJ/Hash Join）",
+      "MySQL 8.0 进一步增强了子查询优化：子查询的 derived table（派生表）可以与外查询做合并（Derived Merge），避免创建临时表。Anti-Join 优化了 NOT IN/NOT EXISTS 的执行效率",
+      "实践建议：① 简单的等值关联优先用 JOIN（可读性和性能都更好）② 复杂的子查询如果 MySQL 能自动优化则不必手动改写 ③ 如果 EXPLAIN 显示子查询走了全表扫描或创建了临时表，考虑改写为 JOIN"
+    ],
+    "followUp": [
+      "NOT IN 和 NOT EXISTS 哪个性能更好？（答：通常 NOT EXISTS 更好。NOT IN 在子查询有 NULL 值时语义不同——如果子查询结果包含 NULL，NOT IN 返回空结果集（三值逻辑导致）。性能上 NOT EXISTS 可以利用索引做半连接优化，NOT IN 可能导致全表扫描。建议统一用 NOT EXISTS 或 LEFT JOIN ... WHERE b.id IS NULL）"
+    ]
+  },
+  {
+    "id": "M5-05",
+    "title": "深分页（LIMIT 100000, 10）为什么慢？有哪些优化方案？",
+    "category": "SQL优化与执行",
+    "categoryId": 5,
+    "level": "L2/L3",
+    "background": "深分页是实际业务中非常常见的性能瓶颈。面试官考察你对 LIMIT 原理的理解和实战优化能力。",
+    "answerPoints": [
+      "LIMIT offset, count 的执行过程：MySQL 需要先扫描 offset + count 行数据（通过索引或全表扫描），丢弃前 offset 行，只返回后 count 行。即 LIMIT 100000, 10 实际扫描了 100010 行但只返回 10 行，前 10 万行的扫描和回表都是浪费",
+      "如果走的是二级索引，每一行都可能需要回表（除非覆盖索引），100000 次回表是大量随机 IO。优化器甚至可能因为回表代价太高而选择全表扫描",
+      "优化方案一——延迟关联（Deferred Join）：先用子查询通过覆盖索引找到目标行的主键，再通过主键回表取完整数据。SELECT * FROM orders INNER JOIN (SELECT id FROM orders WHERE ... ORDER BY id LIMIT 100000, 10) AS t ON orders.id = t.id。子查询走覆盖索引不回表，只有最终 10 行需要回表",
+      "优化方案二——游标分页（Cursor-based Pagination）：记住上一页最后一条记录的 id，下一页查询 WHERE id > last_id ORDER BY id LIMIT 10。避免了 offset 的开销，每次只扫描 10 行。但只能向前翻页不能跳页",
+      "优化方案三——使用索引覆盖扫描：如果只需要索引中的列（如 id + 排序字段），直接走覆盖索引，不回表。对于需要全部字段的场景结合方案一",
+      "优化方案四——业务层限制：对于 to C 产品，限制用户只能浏览前 N 页（如 Google 搜索最多显示 20 页），从业务层规避深分页问题"
+    ],
+    "codeExample": {
+      "code": "-- ❌ 慢：深分页直接 LIMIT\nSELECT * FROM orders WHERE user_id = 100\n  ORDER BY create_time DESC\n  LIMIT 100000, 10;\n-- 需要扫描 100010 行并逐行回表\n\n-- ✅ 优化一：延迟关联\nSELECT o.* FROM orders o\n  INNER JOIN (\n    SELECT id FROM orders WHERE user_id = 100\n    ORDER BY create_time DESC\n    LIMIT 100000, 10\n  ) AS t ON o.id = t.id;\n-- 子查询走覆盖索引 idx_user_time(user_id, create_time)，不回表\n\n-- ✅ 优化二：游标分页（需要前端传上一页最后的 id）\nSELECT * FROM orders WHERE user_id = 100\n  AND id < #{lastId}\n  ORDER BY id DESC\n  LIMIT 10;",
+      "language": "sql",
+      "explanation": "延迟关联让大量 offset 扫描走覆盖索引（不回表），只有最终 10 行才回表取数据。游标分页直接跳过 offset，最快。"
+    },
+    "followUp": [
+      "游标分页有什么限制？（答：①只能顺序翻页，不支持跳转到任意页 ②排序字段必须唯一（否则可能漏数据或重复）③如果按非主键排序（如按时间），需要联合条件 WHERE (create_time, id) < (last_time, last_id) 保证稳定排序 ④删除操作可能导致游标指向的行消失）"
+    ]
+  },
+  {
+    "id": "M5-06",
+    "title": "count(*)、count(1)、count(列名) 有什么区别？InnoDB 下 count(*) 为什么慢？",
+    "category": "SQL优化与执行",
+    "categoryId": 5,
+    "level": "L2/L3",
+    "answerPoints": [
+      "count(*) 和 count(1) 在 InnoDB 中没有性能差别——MySQL 优化器对 count(*) 做了专门优化，不会取出所有字段，而是按行计数。count(1) 也是按行计数。两者语义相同：统计所有行数（包括 NULL 行）",
+      "count(列名) 只统计该列值不为 NULL 的行数。如果列上有 NOT NULL 约束，和 count(*) 结果相同但实现上多了 NULL 判断的开销。如果列可以为 NULL，结果可能比 count(*) 小",
+      "InnoDB 下 count(*) 慢的原因：InnoDB 不像 MyISAM 那样维护行计数器。MyISAM 的表在没有 WHERE 条件时，count(*) 直接返回预存的行数（O(1)）。InnoDB 由于 MVCC，每行是否可见取决于事务的 ReadView，不同事务同时查 count(*) 结果可能不同，所以必须逐行扫描判断可见性",
+      "InnoDB count(*) 的优化：优化器会选择最小的索引树来遍历（因为遍历二级索引比聚簇索引快——二级索引叶子节点只有 key+主键，比聚簇索引的完整行数据小得多，同样的数据量扫描的数据页更少）",
+      "大表 count(*) 的优化方案：①使用 SHOW TABLE STATUS 的 Rows 字段（估算值，误差可能 40%~50%，适用于不需要精确值的场景）②使用 Redis/单独计数表维护精确计数（需处理并发和一致性）③定期任务统计并缓存"
+    ],
+    "codeExample": {
+      "code": "-- 三种 count 的区别\nSELECT count(*) FROM users;        -- 统计所有行（含 NULL）\nSELECT count(1) FROM users;        -- 等价于 count(*)\nSELECT count(name) FROM users;     -- 只统计 name 不为 NULL 的行\nSELECT count(DISTINCT name) FROM users; -- 统计不重复且不为 NULL 的 name 数\n\n-- 查看表行数估算值（快但不精确）\nSHOW TABLE STATUS LIKE 'users'; -- Rows 列\n\n-- 或者通过 information_schema\nSELECT TABLE_ROWS FROM information_schema.TABLES\n  WHERE TABLE_NAME = 'users';",
+      "language": "sql",
+      "explanation": "count(*) 和 count(1) 完全等价，count(列名) 会排除 NULL 值。大表精确 count 无法避免全表扫描。"
+    },
+    "followUp": [
+      "为什么 MySQL 官方建议用 count(*) 而不是 count(1)？（答：MySQL 对 count(*) 做了特殊优化标记，优化器看到 count(*) 就知道是要统计行数，可以选择最优的索引来遍历。count(1) 理论上也一样快，但 count(*) 是 SQL 标准写法，语义更清晰）"
+    ]
+  },
+  {
+    "id": "M5-07",
+    "title": "ORDER BY 的执行流程是什么？全字段排序和 rowid 排序有什么区别？",
+    "category": "SQL优化与执行",
+    "categoryId": 5,
+    "level": "L3",
+    "answerPoints": [
+      "当 ORDER BY 无法利用索引时，MySQL 需要做 filesort。filesort 有两种排序模式：全字段排序（Single-pass）和 rowid 排序（Two-pass）",
+      "全字段排序流程：①找到满足 WHERE 条件的行 ②将 SELECT 需要的所有字段放入 sort_buffer ③在 sort_buffer 中按 ORDER BY 列排序 ④直接返回排序结果。优点：排序完成后直接返回，不需要回表。缺点：每行数据在 sort_buffer 中占用空间大，sort_buffer 能容纳的行数少",
+      "rowid 排序流程：①找到满足 WHERE 条件的行 ②只将排序字段和主键放入 sort_buffer ③在 sort_buffer 中排序 ④按排序后的主键回表取完整数据 ⑤返回结果。优点：sort_buffer 中每行占用空间小，能容纳更多行，减少使用磁盘临时文件的概率。缺点：排序后需要回表（额外 IO）",
+      "MySQL 通过 max_length_for_sort_data 参数决定使用哪种模式：如果 SELECT 的列总长度小于该参数值（默认 4096 字节），用全字段排序；否则用 rowid 排序",
+      "sort_buffer_size 控制排序缓冲区大小（默认 256KB）。如果排序数据量超过 sort_buffer_size，MySQL 会使用磁盘临时文件做外部归并排序（EXPLAIN 中 Extra 显示 Using filesort），性能大幅下降",
+      "最佳优化：让 ORDER BY 走索引，完全避免 filesort。联合索引 (where_col, order_col) 可以同时满足过滤和排序"
+    ],
+    "followUp": [
+      "ORDER BY RAND() 为什么特别慢？怎么优化？（答：ORDER BY RAND() 会对全表数据计算随机值并排序，时间复杂度 O(NlogN)。优化方案：①先用 count(*) 得到总数 N → 生成随机 offset → LIMIT offset, 1 ②先 SELECT id 到应用层随机选取 → 再通过 id 取数据 ③使用 MySQL 的 RAND() + 子查询组合减少排序量）"
+    ]
+  },
+  {
+    "id": "M5-08",
+    "title": "GROUP BY 是怎么执行的？什么时候会用临时表？怎么优化？",
+    "category": "SQL优化与执行",
+    "categoryId": 5,
+    "level": "L3",
+    "answerPoints": [
+      "GROUP BY 的执行有两种主要方式：①利用索引的有序性直接分组（Index Scan / Loose Index Scan）②创建临时表存储中间结果进行分组（Using temporary）",
+      "走索引分组：如果 GROUP BY 列是索引的最左前缀，MySQL 可以顺序扫描索引进行分组，不需要临时表。EXPLAIN 中 Extra 不会出现 Using temporary。Loose Index Scan 更优——只读取每组的第一个和最后一个索引记录，跳过中间记录",
+      "临时表分组：如果 GROUP BY 列没有索引，MySQL 创建临时表，扫描所有满足条件的行，按分组列做聚合计算。临时表在内存中（tmp_table_size 和 max_heap_table_size 中的较小值限制大小），超出后转为磁盘临时表",
+      "MySQL 5.7 及之前，GROUP BY 默认会隐式排序（按分组列升序排列结果）。MySQL 8.0 取消了隐式排序——如果需要排序必须显式加 ORDER BY。如果不需要排序，MySQL 8.0 可以避免不必要的排序开销",
+      "GROUP BY 优化策略：①在 GROUP BY 列上建索引（最有效）②如果不需要排序，加 ORDER BY NULL（MySQL 5.7 适用，8.0 已默认不排序）③减少分组列的数量（列越少分组越快）④在 WHERE 阶段尽量过滤数据，减少需要分组的行数 ⑤对于 GROUP BY + HAVING 的场景，尽量把 HAVING 条件移到 WHERE 中"
+    ],
+    "followUp": [
+      "GROUP BY 和 DISTINCT 在执行上有什么区别？（答：在没有聚合函数的情况下，GROUP BY 和 DISTINCT 的执行计划通常完全相同——都是去重操作。有些场景 MySQL 优化器会将 DISTINCT 转换为 GROUP BY 来执行。但如果 GROUP BY 配合了聚合函数（SUM/AVG 等），则和 DISTINCT 的语义完全不同）"
+    ]
+  },
+  {
+    "id": "M5-09",
+    "title": "IN 和 EXISTS 有什么区别？怎么根据数据量选择？NOT IN 为什么要避免？",
+    "category": "SQL优化与执行",
+    "categoryId": 5,
+    "level": "L2/L3",
+    "answerPoints": [
+      "执行方式不同：IN 先执行子查询得到结果集，再用结果集与外表做匹配（子查询驱动）。EXISTS 对外表每一行执行子查询检查是否存在（外表驱动）",
+      "性能选择原则：子查询结果集小 → 用 IN（小结果集做驱动效率高）；子查询结果集大但外表小 → 用 EXISTS（小外表做驱动效率高）。本质是「小表驱动大表」原则",
+      "MySQL 优化器的演进：MySQL 5.6+ 对 IN 子查询做了物化（Materialization）优化，将子查询结果物化为临时表并建索引，性能大幅提升。MySQL 8.0 进一步优化了子查询的执行策略。所以在新版 MySQL 中，IN 和 EXISTS 的性能差异已经大大缩小",
+      "NOT IN 的两大问题：① NULL 陷阱——如果子查询结果包含 NULL，NOT IN 的结果永远为空集（SQL 三值逻辑：任何值 NOT IN (1, 2, NULL) 都是 UNKNOWN）② 性能问题——NOT IN 可能导致全表扫描，无法有效利用索引",
+      "替代 NOT IN 的方案：① NOT EXISTS——语义更清晰，能利用索引 ② LEFT JOIN ... WHERE b.id IS NULL（反连接）——很多场景下性能最好 ③ MySQL 8.0 的 Anti-Join 优化让 NOT EXISTS 和 NOT IN 都能被优化为高效的反连接"
+    ],
+    "codeExample": {
+      "code": "-- IN：适合子查询结果集小的场景\nSELECT * FROM orders\n  WHERE user_id IN (SELECT id FROM users WHERE vip = 1);\n-- 如果 vip 用户只有 100 个，IN 效率高\n\n-- EXISTS：适合外表小的场景\nSELECT * FROM users u\n  WHERE EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id);\n-- 如果 users 表很小，EXISTS 效率高\n\n-- ❌ 避免 NOT IN（NULL 陷阱 + 性能差）\nSELECT * FROM users WHERE id NOT IN (SELECT user_id FROM orders);\n-- 如果 orders.user_id 有 NULL，结果为空！\n\n-- ✅ 用 NOT EXISTS 替代\nSELECT * FROM users u\n  WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id);\n\n-- ✅ 或用 LEFT JOIN\nSELECT u.* FROM users u\n  LEFT JOIN orders o ON u.id = o.user_id\n  WHERE o.user_id IS NULL;",
+      "language": "sql",
+      "explanation": "NOT IN 有 NULL 陷阱和性能问题，统一用 NOT EXISTS 或 LEFT JOIN ... IS NULL 替代。"
+    },
+    "followUp": [
+      "IN 后面跟大量值（如 IN (1,2,3,...10000)）会有什么问题？（答：①SQL 文本过长，可能超过 max_allowed_packet ②大量值的比较开销高 ③MySQL 对 IN 列表有内部限制。优化：将值插入临时表做 JOIN，或分批查询合并结果）"
+    ]
+  },
+  {
+    "id": "M5-10",
+    "title": "MySQL 查询优化器会做哪些自动优化？举例说明什么时候优化器会选错索引？",
+    "category": "SQL优化与执行",
+    "categoryId": 5,
+    "level": "L3",
+    "answerPoints": [
+      "优化器的自动优化包括：① WHERE 条件顺序无关——自动调整条件匹配最左前缀 ② 常量传播——WHERE a=5 AND a=b 优化为 WHERE a=5 AND b=5 ③ 等值传递——JOIN 条件推导出新的过滤条件 ④ 子查询优化——IN 子查询物化/半连接 ⑤ 外连接消除——如果 WHERE 条件导致外连接等价于内连接，自动转换 ⑥ 冗余条件消除",
+      "优化器基于成本模型（Cost-Based Optimizer）选择执行计划。成本估算依赖统计信息：表的行数（SHOW TABLE STATUS 的 Rows）、索引的基数/选择性（SHOW INDEX 的 Cardinality）、数据分布直方图（MySQL 8.0）",
+      "优化器选错索引的常见原因：① 统计信息不准确——InnoDB 通过随机采样估算索引基数，采样结果可能偏差大。解决：ANALYZE TABLE 重新统计 ② 回表代价估算偏差——优化器可能高估走索引+回表的代价，选择全表扫描。实际上索引扫描可能更快（命中 Buffer Pool）③ 数据分布不均匀——索引的平均选择性不错，但对特定值的选择性很差（如 status='active' 占 99% 的行）",
+      "强制使用或忽略索引：FORCE INDEX(idx_name)——强制优化器使用指定索引；IGNORE INDEX(idx_name)——禁止使用指定索引。这是临时手段，根本解决方案是让统计信息更准确或添加更合适的索引",
+      "MySQL 8.0 的改进：① EXPLAIN ANALYZE 展示实际执行数据，方便发现估算偏差 ② Histogram（直方图）提供列值分布信息，改善不均匀分布的估算 ③ 优化器 hints（如 /*+ INDEX(t idx) */）提供比 FORCE INDEX 更灵活的控制"
+    ],
+    "followUp": [
+      "ANALYZE TABLE 做了什么？什么时候需要手动执行？（答：ANALYZE TABLE 让 InnoDB 重新对表的各索引做随机采样，更新索引的 Cardinality 统计信息。当大量数据变更后（批量导入/删除）统计信息可能过时，导致优化器选错索引。此时手动 ANALYZE TABLE 可以纠正。该操作在 InnoDB 上只加读锁，不阻塞写入）"
+    ]
+  }
+]

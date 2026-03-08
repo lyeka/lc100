@@ -1,0 +1,133 @@
+[
+  {
+    "id": "M4-01",
+    "title": "redo log、undo log 和 binlog 各自的作用是什么？它们之间是什么关系？",
+    "category": "日志系统与崩溃恢复",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "background": "MySQL 三大日志是面试必考。面试官通过这道题考察你能否理清三者的职责边界和协作关系，而不是混为一谈。",
+    "answerPoints": [
+      "redo log（重做日志）：InnoDB 引擎层的物理日志，记录「在某个数据页上做了什么修改」。用于保证事务的持久性——事务提交时 redo log 刷盘，即使崩溃也能通过重放 redo log 恢复已提交事务。redo log 是循环写的固定大小文件（如 4 个 1GB 文件），写满后从头覆盖",
+      "undo log（回滚日志）：InnoDB 引擎层的逻辑日志，记录修改前的旧值（INSERT 记录删除操作、DELETE 记录插入操作、UPDATE 记录旧值）。两个作用：①事务回滚时恢复数据（原子性）②MVCC 的版本链，让快照读能读到历史版本（隔离性）",
+      "binlog（归档日志）：Server 层的逻辑日志，记录所有修改数据的 SQL 或行变更（取决于 binlog 格式）。用于主从复制和数据恢复（Point-in-Time Recovery）。binlog 是追加写入的，不会覆盖旧日志",
+      "redo log vs binlog 的核心区别：① 层次不同：redo log 是引擎层（InnoDB 独有），binlog 是 Server 层（所有引擎通用）② 内容不同：redo log 是物理日志（页级修改），binlog 是逻辑日志（SQL 或行变更）③ 写入方式不同：redo log 循环写固定大小，binlog 追加写无限大 ④ 用途不同：redo log 用于崩溃恢复，binlog 用于复制和备份恢复",
+      "三者的协作关系：一条 UPDATE 执行时——先写 undo log（保存旧值）→ 修改 Buffer Pool 中的数据页 → 写 redo log buffer → 写 binlog cache → 事务提交时两阶段提交（redo log prepare → binlog 刷盘 → redo log commit）"
+    ],
+    "followUp": [
+      "为什么有了 binlog 还需要 redo log？（答：binlog 没有 crash-safe 能力——它不记录数据页的物理状态，无法将数据页恢复到崩溃前的最新状态。binlog 是逻辑日志，回放 binlog 相当于重新执行 SQL，在崩溃恢复场景效率低且可能不一致。redo log 是物理日志，直接恢复数据页，速度快且精确）",
+      "为什么有了 redo log 还需要 binlog？（答：redo log 是循环写的，旧日志会被覆盖，无法用于长期归档。binlog 是追加写入的完整变更历史，用于主从复制和任意时间点恢复。另外 redo log 是 InnoDB 独有的，binlog 是 Server 层能力，其他引擎也能用）"
+    ]
+  },
+  {
+    "id": "M4-02",
+    "title": "WAL 机制的原理是什么？为什么顺序写日志比随机写数据页快？",
+    "category": "日志系统与崩溃恢复",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "answerPoints": [
+      "WAL（Write-Ahead Logging）的核心思想：先写日志再写数据。修改数据时不直接将脏页写入磁盘，而是将修改操作以 redo log 的形式先写入日志文件并刷盘，脏页由后台线程择机刷盘。这样事务提交只需要等 redo log 刷盘完成即可返回",
+      "顺序写 vs 随机写的性能差距：磁盘（包括 SSD）的顺序写速度远高于随机写。redo log 是顺序追加写入（Append-Only），一次事务提交只需要一次顺序写（几百字节到几 KB）。而数据页刷盘是随机写（脏页分散在不同位置），且单次写入量大（16KB 一页）",
+      "WAL 的性能优势量化：对于机械硬盘，顺序写速度约 100~200 MB/s，随机写只有 1~5 MB/s，差距 100 倍。SSD 的差距小一些但仍然显著。WAL 把大量的随机写转化为少量的顺序写 + 后台的批量刷盘",
+      "WAL 还能合并写入：如果同一数据页在脏页刷盘之前被多次修改，只需要刷一次最终状态。而没有 WAL 的话，每次修改都要立即刷盘",
+      "redo log 的刷盘本身也有优化——组提交（Group Commit）：多个事务的 redo log 可以合并为一次 fsync 操作批量刷盘，进一步减少磁盘 IO 次数"
+    ],
+    "followUp": [
+      "redo log 写满了会怎样？（答：redo log 是循环写的，write pos 是当前写入位置，checkpoint 是已刷盘的脏页位置。如果 write pos 追上了 checkpoint，意味着 redo log 满了，MySQL 会暂停所有更新操作，先推进 checkpoint（刷脏页到磁盘），腾出空间后再继续。这会导致 MySQL 瞬间卡顿，生产环境应把 redo log 设大一些（如 4 个 1GB 文件）避免频繁刷盘）"
+    ]
+  },
+  {
+    "id": "M4-03",
+    "title": "两阶段提交是怎么保证 redo log 和 binlog 一致性的？崩溃恢复时怎么判断？",
+    "category": "日志系统与崩溃恢复",
+    "categoryId": 4,
+    "level": "L3",
+    "background": "两阶段提交是 MySQL 日志系统的精髓。面试官通常要求你推演各种崩溃时间点的恢复策略。",
+    "answerPoints": [
+      "问题背景：redo log 和 binlog 是两个独立的日志系统，如果不协调，崩溃后可能出现不一致——比如 redo log 写了但 binlog 没写，数据库恢复后有这条数据，但从库通过 binlog 恢复没有这条数据",
+      "两阶段提交流程：① Prepare 阶段：InnoDB 将 redo log 写入并刷盘，标记为 prepare 状态（此时事务尚未提交）② Commit 阶段：Server 层将 binlog 写入并刷盘 → 然后将 redo log 标记为 commit 状态。binlog 刷盘成功是事务提交成功的标志",
+      "崩溃恢复判断规则：① redo log 中事务状态是 commit → 直接提交（正常情况）② redo log 中事务状态是 prepare 且 binlog 中有对应的完整事务记录（通过 XID 关联）→ 提交事务 ③ redo log 中事务状态是 prepare 但 binlog 中没有对应记录 → 回滚事务",
+      "为什么是 binlog 作为事务提交的判断标准？因为 binlog 已经写成功意味着这个事务变更已经可能被传到从库了，如果主库回滚而从库已经执行了，就会主从不一致。所以只要 binlog 写成功，主库也必须提交",
+      "两阶段提交的性能问题：每次事务提交需要两次 fsync（redo log 一次 + binlog 一次）。优化方案——组提交（Group Commit）：将多个事务的 fsync 合并为一次。redo log 和 binlog 各自有 leader 线程负责收集组内事务并一次性 fsync，大幅降低 IO 次数",
+      "MySQL 5.7 引入了组提交的优化：将 redo log 的 prepare、binlog 的 write、binlog 的 fsync 三个步骤拆成三个阶段（flush/sync/commit），每个阶段都可以组提交，提升并发写入性能"
+    ],
+    "followUp": [
+      "组提交和 binlog_group_commit_sync_delay 参数有什么关系？（答：这个参数让 binlog fsync 前等待一段时间（微秒级），积累更多事务一起 fsync，提高组提交的效果。设得越大组提交效果越好但延迟越高，需要权衡）"
+    ]
+  },
+  {
+    "id": "M4-04",
+    "title": "innodb_flush_log_at_trx_commit 和 sync_binlog 的各种组合有什么含义？怎么选？",
+    "category": "日志系统与崩溃恢复",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "answerPoints": [
+      "innodb_flush_log_at_trx_commit 控制 redo log 的刷盘策略：① =1（默认）：每次事务提交都将 redo log buffer 写入 OS page cache 并 fsync 到磁盘。最安全，性能最低 ② =0：redo log 留在 buffer 中，每秒由后台线程写入 page cache 并 fsync。崩溃可能丢失 1 秒数据 ③ =2：每次提交写入 OS page cache 但不 fsync，由 OS 决定何时刷盘。MySQL 崩溃不丢数据（因为在 OS page cache 中），但 OS 崩溃可能丢失",
+      "sync_binlog 控制 binlog 的刷盘策略：① =1（最安全）：每次事务提交都 fsync binlog ② =0：由 OS 决定何时刷盘 ③ =N（N>1）：每 N 个事务 fsync 一次",
+      "「双 1 配置」：innodb_flush_log_at_trx_commit=1 + sync_binlog=1，最安全但性能最低，每次事务提交两次 fsync。适用于对数据安全要求极高的场景（如金融系统）",
+      "「高性能配置」：innodb_flush_log_at_trx_commit=2 + sync_binlog=100~1000，性能高但崩溃时可能丢失少量数据。适用于允许少量数据丢失的场景（如日志系统、非核心业务）",
+      "生产环境选择建议：核心业务数据库用「双 1」保证数据安全；非核心数据库可以适当放宽以提升性能。要根据业务对数据丢失的容忍度决定"
+    ],
+    "codeExample": {
+      "code": "-- 查看当前配置\nSHOW VARIABLES LIKE 'innodb_flush_log_at_trx_commit';\nSHOW VARIABLES LIKE 'sync_binlog';\n\n-- 最安全（双 1）\nSET GLOBAL innodb_flush_log_at_trx_commit = 1;\nSET GLOBAL sync_binlog = 1;\n\n-- 高性能（允许少量数据丢失）\nSET GLOBAL innodb_flush_log_at_trx_commit = 2;\nSET GLOBAL sync_binlog = 100;",
+      "language": "sql",
+      "explanation": "双 1 配置是金融级安全保障，每次提交两次 fsync。放宽配置可大幅提升 TPS 但增加了崩溃时丢数据的风险。"
+    },
+    "followUp": [
+      "为什么 innodb_flush_log_at_trx_commit=2 时 MySQL 进程崩溃不丢数据？（答：=2 时 redo log 写入了 OS 的 page cache（内核缓冲区），MySQL 进程崩溃但 OS 还在运行，OS 会将 page cache 中的数据最终写入磁盘。只有 OS 也崩溃（断电、内核 panic）才会丢失 page cache 中的数据）"
+    ]
+  },
+  {
+    "id": "M4-05",
+    "title": "MySQL 崩溃恢复的完整流程是怎样的？",
+    "category": "日志系统与崩溃恢复",
+    "categoryId": 4,
+    "level": "L3",
+    "answerPoints": [
+      "MySQL 启动时 InnoDB 会自动执行崩溃恢复（Crash Recovery），主要分为两个阶段：redo 阶段（前滚）和 undo 阶段（回滚）",
+      "Redo 阶段（前滚/重做）：InnoDB 读取 redo log，从最近的 checkpoint 位置开始，将所有 redo log 中的修改重新应用到数据页上。这一步保证了所有已提交事务的修改都被恢复到数据页中（即使脏页没来得及刷盘）",
+      "结合两阶段提交判断事务状态：对于 redo log 中 prepare 状态的事务，检查 binlog 中是否有对应的完整记录——有则提交（redo log 标记为 commit），无则回滚",
+      "Undo 阶段（回滚）：对于崩溃时未提交的事务（redo log 中没有 commit 也没有对应 binlog），通过 undo log 回滚这些事务的修改，将数据恢复到事务开始前的状态",
+      "Double Write 恢复：在 redo 阶段之前，InnoDB 会先检查数据页的完整性（通过 checksum）。如果发现数据页损坏（部分写失效），从 Double Write Buffer 的备份中恢复完整的数据页，然后再应用 redo log",
+      "恢复完成后：Buffer Pool 被重新初始化，undo log 中的历史版本会被后台 purge 线程逐步清理，系统进入正常运行状态"
+    ],
+    "followUp": [
+      "崩溃恢复的时间取决于什么？（答：主要取决于需要重放的 redo log 量——从最近的 checkpoint 到 redo log 末尾的距离。checkpoint 越频繁，崩溃恢复越快。另外 undo 阶段需要回滚未提交事务，长事务的回滚可能很慢。所以生产环境要避免长事务，保持合理的 checkpoint 频率）"
+    ]
+  },
+  {
+    "id": "M4-06",
+    "title": "binlog 的三种格式（Statement/Row/Mixed）各有什么优缺点？生产环境怎么选？",
+    "category": "日志系统与崩溃恢复",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "answerPoints": [
+      "Statement 格式：记录原始 SQL 语句。优点：日志量小（一条 UPDATE 影响 1 万行，binlog 只记一条 SQL）。缺点：某些函数（NOW()、UUID()、RAND()）在主从执行结果不同导致数据不一致；存储过程、触发器的复制也可能有问题",
+      "Row 格式：记录每一行数据的变更（修改前和修改后的值）。优点：精确记录每行变更，主从一致性最好；不存在函数不确定性问题。缺点：日志量大（一条 UPDATE 影响 1 万行，binlog 记 1 万条行变更），大批量操作时 binlog 暴增",
+      "Mixed 格式：MySQL 自动选择——安全的 SQL 用 Statement 格式（省空间），不安全的 SQL 自动切换为 Row 格式（保一致性）。兼顾两者优点，但增加了行为的不确定性",
+      "生产环境推荐 Row 格式：①主从一致性最有保障 ②方便用 binlog 做数据恢复和审计（能看到具体哪一行改了什么）③配合 binlog_row_image=MINIMAL 可以只记录修改列的值，减小日志量。大多数互联网公司使用 Row 格式",
+      "MySQL 8.0 默认 binlog 格式已改为 ROW。如果使用 RC 隔离级别，必须使用 ROW 格式（Statement 格式在 RC 下可能导致主从不一致）"
+    ],
+    "followUp": [
+      "binlog_row_image 参数的三种取值有什么区别？（答：FULL（默认）——记录所有列的值（修改前和修改后）；MINIMAL——只记录被修改的列的值和必要的标识列（如主键）；NOBLOB——和 FULL 类似但排除未修改的 BLOB/TEXT 列。MINIMAL 可以大幅减小 Row 格式的 binlog 体积）"
+    ]
+  },
+  {
+    "id": "M4-07",
+    "title": "Online DDL 的实现原理是什么？大表加字段用 pt-osc 和 gh-ost 有什么区别？",
+    "category": "日志系统与崩溃恢复",
+    "categoryId": 4,
+    "level": "L3",
+    "background": "大表 DDL 是生产环境中最危险的操作之一。面试官考察你能否安全地在不停服的情况下对大表做 schema 变更。",
+    "answerPoints": [
+      "MySQL Online DDL 的三种算法：① COPY：创建临时表 → 逐行复制数据 → 交换表名。期间不允许 DML，全程锁表 ② INPLACE：在原表的 InnoDB 引擎层直接修改，不逐行复制（但 rebuild table 类操作仍会重建表），允许并发 DML（通过 row log 记录 DDL 期间的增量变更，最后合并）③ INSTANT（MySQL 8.0.12+）：只修改数据字典中的元数据，不修改表数据，毫秒级完成。目前只支持部分操作如添加列",
+      "INPLACE 的三阶段流程：① Prepare 阶段——获取 MDL 排他锁 → 确定算法和锁策略 → 分配 row_log → 降级为 MDL 共享锁（允许 DML）② Execute 阶段——重建表/修改索引，同时将 DML 操作记录到 row_log ③ Commit 阶段——升级为 MDL 排他锁（短暂阻塞 DML）→ 重放 row_log → rename → 释放锁",
+      "pt-online-schema-change（pt-osc）原理：①创建与原表结构相同的影子表 ②在影子表上执行 ALTER ③在原表上创建 INSERT/UPDATE/DELETE 三个触发器，将增量 DML 同步到影子表 ④分批复制原表数据到影子表 ⑤复制完成后 rename 交换表名 ⑥删除触发器和旧表",
+      "gh-ost 原理：与 pt-osc 最大区别是不使用触发器，而是通过模拟 MySQL 从库读取 binlog 来捕获增量变更。①创建影子表并执行 ALTER ②作为 MySQL 从库连接主库读取 binlog ③将 binlog 中原表的变更回放到影子表 ④同时分批复制存量数据 ⑤完成后 rename 交换",
+      "pt-osc vs gh-ost 对比：① 增量同步方式不同——pt-osc 用触发器（可能导致锁竞争和性能影响），gh-ost 用 binlog（对主库性能影响更小）② pt-osc 要求表上无触发器，gh-ost 无此限制 ③ gh-ost 支持实时暂停/限速/动态调整，可控性更强 ④ 两者都需要约等于原表大小的额外磁盘空间",
+      "选择建议：新项目优先 gh-ost（更安全、可控性更强）；如果是 MySQL 8.0 且操作支持 INSTANT 算法（如加列），直接用 INSTANT 最快。对于不支持 Online DDL 的操作，或需要精细控制的场景，使用 gh-ost"
+    ],
+    "followUp": [
+      "MDL 锁是什么？为什么 DDL 有时候会卡住？（答：MDL（Metadata Lock）是 MySQL 5.5 引入的元数据锁，用于保护表结构。SELECT/DML 自动加 MDL 读锁，DDL 需要 MDL 写锁。如果有长事务持有 MDL 读锁不释放，DDL 就会一直等待 MDL 写锁。更严重的是 DDL 等待期间，后续所有对该表的 SELECT/DML 也会被阻塞（排队等在 DDL 后面）。解决方案：先 kill 长事务，或用 ALTER TABLE ... WAIT N 设置等待超时）"
+    ]
+  }
+]
