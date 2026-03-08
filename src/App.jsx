@@ -2,7 +2,7 @@
  * [INPUT]: react-router, @/components/Header, @/components/Footer, @/pages/*
  * [OUTPUT]: App 根组件，包含路由结构和全局布局
  * [POS]: 应用入口，定义路由树，组合 Header + 页面内容 + Footer
- *        路由：/, /leetcode, /problem/:id, /agent, /agent/:id, /go, /go/:id, /design-system
+ *        路由：/, /leetcode, /problem/:id, /agent, /agent/:id, /go, /go/:id, /mysql, /mysql/:id, /design-system
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { BrowserRouter, Routes, Route } from 'react-router'
@@ -15,6 +15,8 @@ import { AgentHome } from '@/pages/AgentHome'
 import { AgentDetail } from '@/pages/AgentDetail'
 import { GoHome } from '@/pages/GoHome'
 import { GoDetail } from '@/pages/GoDetail'
+import { MysqlHome } from '@/pages/MysqlHome'
+import { MysqlDetail } from '@/pages/MysqlDetail'
 import { DesignSystem } from '@/pages/DesignSystem'
 
 function Layout({ children }) {
@@ -39,6 +41,8 @@ export default function App() {
           <Route path="/agent/:id" element={<AgentDetail />} />
           <Route path="/go" element={<GoHome />} />
           <Route path="/go/:id" element={<GoDetail />} />
+          <Route path="/mysql" element={<MysqlHome />} />
+          <Route path="/mysql/:id" element={<MysqlDetail />} />
           <Route path="/design-system" element={<DesignSystem />} />
         </Routes>
       </Layout>

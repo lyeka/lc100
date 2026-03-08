@@ -1,6 +1,6 @@
 /**
  * [INPUT]: react-router (Link), framer-motion (motion), @/lib/progress (useProgressStats),
- *          @/data/problems, @/data/interviews, @/data/goInterviews
+ *          @/data/problems, @/data/interviews, @/data/goInterviews, @/data/mysqlInterviews
  * [OUTPUT]: Landing 总目录页 — ZIMA 博物馆画廊风格
  * [POS]: 路由 /，全站入口，Museum Frame + Hero 标题 + 画廊卡片 + 宣言统计
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -11,14 +11,16 @@ import { useProgressStats } from '@/lib/progress'
 import { problems, categories } from '@/data/problems'
 import { interviews, interviewCategories } from '@/data/interviews'
 import { goInterviews, goInterviewCategories } from '@/data/goInterviews'
+import { mysqlInterviews, mysqlInterviewCategories } from '@/data/mysqlInterviews'
 
 /* ── 常量 ── */
-const ROMAN = ['I', 'II', 'III']
+const ROMAN = ['I', 'II', 'III', 'IV']
 
 const TOTALS = {
   leetcode: problems.length,
   agent: interviews.length,
   go: goInterviews.length,
+  mysql: mysqlInterviews.length,
 }
 
 /* ── 分类预览 ── */
@@ -61,6 +63,16 @@ const VOLUMES = [
     total: goInterviews.length,
     image: '/3.png',
   },
+  {
+    title: 'MySQL 面试',
+    subtitle: '存储引擎 · 索引原理 · 事务锁机制 · SQL 优化',
+    to: '/mysql',
+    section: 'mysql',
+    categories: mysqlInterviewCategories,
+    preview: categoryPreview(mysqlInterviewCategories),
+    total: mysqlInterviews.length,
+    image: '/4.png',
+  },
 ]
 
 /* ── 缓出贝塞尔 ── */
@@ -68,12 +80,12 @@ const EASE_OUT = [0.16, 1, 0.3, 1]
 
 export function Landing() {
   const stats = useProgressStats(TOTALS)
-  const totalAll = TOTALS.leetcode + TOTALS.agent + TOTALS.go
-  const totalLearned = stats.leetcode.count + stats.agent.count + stats.go.count
-  const totalCategories = categories.length + interviewCategories.length + goInterviewCategories.length
+  const totalAll = TOTALS.leetcode + TOTALS.agent + TOTALS.go + TOTALS.mysql
+  const totalLearned = stats.leetcode.count + stats.agent.count + stats.go.count + stats.mysql.count
+  const totalCategories = categories.length + interviewCategories.length + goInterviewCategories.length + mysqlInterviewCategories.length
 
   const infoRows = [
-    { label: '卷册', value: '三卷' },
+    { label: '卷册', value: '四卷' },
     { label: '总题数', value: `${totalAll} 篇` },
     { label: '已完成', value: `${totalLearned} 篇` },
     { label: '分类', value: `${totalCategories} 个` },
@@ -105,7 +117,7 @@ export function Landing() {
             Interview
           </h1>
           <p className="mt-6 text-lg text-muted-foreground tracking-wide">
-            算法 · AI Agent · Go — 三卷精选
+            算法 · AI Agent · Go · MySQL — 四卷精选
           </p>
           <p className="mt-2 text-sm text-muted-foreground/70">
             {totalAll} 篇 · 已读 {totalLearned}
@@ -115,7 +127,7 @@ export function Landing() {
         {/* ════════════════════════════════════════
            画廊 — 3 张 Unsplash 卡片
            ════════════════════════════════════════ */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 px-8 pb-16">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 px-8 pb-16">
           {VOLUMES.map((vol, i) => {
             const s = stats[vol.section]
             return (
@@ -207,7 +219,7 @@ export function Landing() {
                 到彼岸
               </p>
               <p className="mt-4 text-sm text-muted-foreground">
-                三卷精选 · {totalAll} 道题 · 认知跃迁
+                四卷精选 · {totalAll} 道题 · 认知跃迁
               </p>
             </div>
           </div>

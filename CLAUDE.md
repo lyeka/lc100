@@ -17,6 +17,7 @@ src/              - 应用源码
 leetcode-hot100-json/ - 100 个题解 JSON 数据源
 agent-interview-json/ - 74 道 AI Agent 面试题 JSON（8 个分类文件）
 go-interview-json/    - 40 道 Go 面试题 JSON（6 个分类文件）
+redis-interview-json/ - 58 道 Redis 面试题 JSON（8 个分类文件）
 mysql-interview-json/ - 52 道 MySQL 面试题 JSON（6 个分类文件）
 public/           - 静态资源
 </directory>
@@ -32,13 +33,15 @@ index.html        - HTML 入口，挂载点 #root + 防闪烁主题预设脚本
 ## 路由结构
 | 路径 | 页面 | 说明 |
 |------|------|------|
-| / | Landing | 总目录：三卷导航 + 总数统计 |
+| / | Landing | 总目录：四卷导航 + 总数统计 |
 | /leetcode | Home | 分类/难度筛选 + 100 题古典目录 |
 | /problem/:id | ProblemDetail | 描述(折叠) → 核心思路(突出) → 关键步骤(渐进) → Go 代码高亮 |
 | /agent | AgentHome | 8 大分类 · 等级筛选 · 74 题古典目录 |
 | /agent/:id | AgentDetail | 背景说明 → 参考要点(全展开) → 追问 |
 | /go | GoHome | 6 大分类 · 等级筛选 · 40 题古典目录 |
 | /go/:id | GoDetail | 背景说明 → 参考要点 → 代码示例(可选) → 追问 |
+| /mysql | MysqlHome | 6 大分类 · 等级筛选 · 52 题古典目录 |
+| /mysql/:id | MysqlDetail | 背景说明 → 参考要点 → SQL 代码示例(可选) → 追问 |
 | /design-system | DesignSystem | 设计系统组件展示 |
 
 ## 数据 Schema
@@ -50,6 +53,9 @@ index.html        - HTML 入口，挂载点 #root + 防闪烁主题预设脚本
 每个 JSON: `{ id, title, category, categoryId, level, background?, answerPoints[], followUp[] }`
 
 ### Go 面试题
+每个 JSON: `{ id, title, category, categoryId, level, background?, answerPoints[], codeExample?: { code, language, explanation }, followUp[] }`
+
+### Redis 面试题
 每个 JSON: `{ id, title, category, categoryId, level, background?, answerPoints[], codeExample?: { code, language, explanation }, followUp[] }`
 
 ### MySQL 面试题

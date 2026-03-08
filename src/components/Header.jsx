@@ -1,6 +1,6 @@
 /**
  * [INPUT]: react-router (Link, useLocation), @/components/ThemeSelector, @/lib/progress (useProgressStats),
- *          @/data/problems, @/data/interviews, @/data/goInterviews, @/components/ui/tooltip
+ *          @/data/problems, @/data/interviews, @/data/goInterviews, @/data/mysqlInterviews, @/components/ui/tooltip
  * [OUTPUT]: Header 页眉组件（纯文字导航 + · 分隔 + 主题色点）
  * [POS]: 全局布局组件，sticky 定位，古典页眉风格，进度信息藏于 Tooltip
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -12,11 +12,13 @@ import { useProgressStats } from '@/lib/progress'
 import { problems } from '@/data/problems'
 import { interviews } from '@/data/interviews'
 import { goInterviews } from '@/data/goInterviews'
+import { mysqlInterviews } from '@/data/mysqlInterviews'
 
 const TOTALS = {
   leetcode: problems.length,
   agent: interviews.length,
   go: goInterviews.length,
+  mysql: mysqlInterviews.length,
 }
 
 const navLinks = [
@@ -24,6 +26,7 @@ const navLinks = [
   { to: '/leetcode', label: '题库',  section: 'leetcode' },
   { to: '/agent',    label: 'Agent', section: 'agent' },
   { to: '/go',       label: 'Go',    section: 'go' },
+  { to: '/mysql',    label: 'MySQL', section: 'mysql' },
 ]
 
 export function Header() {
