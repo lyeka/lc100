@@ -14,28 +14,26 @@ export function LearnedStamp({ section, id, total }) {
   const learned = isLearned(id)
 
   return (
-    <div className="flex justify-center py-4">
-      <motion.button
-        onClick={() => toggle(id)}
-        whileTap={{ scale: 0.85 }}
-        animate={{ scale: learned ? [1.08, 1] : 1 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
-        aria-pressed={learned}
-        aria-label={learned ? '取消已学标记' : '标记为已学'}
-        className={`flex items-center gap-2 px-4 py-2 rounded-full cursor-pointer transition-colors duration-300 select-none ${
-          learned
-            ? 'text-primary'
-            : 'text-muted-foreground/30 hover:text-muted-foreground/60'
-        }`}
-      >
-        <BookmarkCheck
-          size={18}
-          className={`transition-all duration-300 ${learned ? 'fill-primary/20' : ''}`}
-        />
-        <span className="text-xs tracking-wider">
-          {learned ? '已学' : '标记已学'}
-        </span>
-      </motion.button>
-    </div>
+    <motion.button
+      onClick={() => toggle(id)}
+      whileTap={{ scale: 0.85 }}
+      animate={{ scale: learned ? [1.08, 1] : 1 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+      aria-pressed={learned}
+      aria-label={learned ? '取消已学标记' : '标记为已学'}
+      className={`flex items-center gap-2 px-4 py-2 rounded-full cursor-pointer transition-colors duration-300 select-none ${
+        learned
+          ? 'text-primary'
+          : 'text-muted-foreground/30 hover:text-muted-foreground/60'
+      }`}
+    >
+      <BookmarkCheck
+        size={18}
+        className={`transition-all duration-300 ${learned ? 'fill-primary/20' : ''}`}
+      />
+      <span className="text-xs tracking-wider">
+        {learned ? '已学' : '标记已学'}
+      </span>
+    </motion.button>
   )
 }

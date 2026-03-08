@@ -1,5 +1,5 @@
 /**
- * [INPUT]: react (useState), react-router (useParams, Link), @/data/problems, @/components/CodeBlock, @/components/LearnedStamp
+ * [INPUT]: react (useState), react-router (useParams, Link), @/data/problems, @/components/CodeBlock, @/components/LearnedStamp, @/components/OpenInChatGPT
  * [OUTPUT]: ProblemDetail 古典书页阅读页
  * [POS]: 路由 /problem/:id，全站阅读体验核心
  *        书页容器 bg-card shadow-2xl 浮于深色桌面
@@ -11,6 +11,7 @@ import { useParams, Link } from 'react-router'
 import { problemMap } from '@/data/problems'
 import { CodeBlock } from '@/components/CodeBlock'
 import { LearnedStamp } from '@/components/LearnedStamp'
+import { OpenInChatGPT } from '@/components/OpenInChatGPT'
 import { Button } from '@/components/ui/button'
 
 /* ── 中文数字 ── */
@@ -41,6 +42,26 @@ function Divider() {
       ·　·　·
     </div>
   )
+}
+
+/* ── 构建 ChatGPT prompt ── */
+function buildPrompt(p) {
+  const parts = [
+    '请你通俗易懂的解释以下算法题的解题思路：',
+    '',
+    `【题目】${p.title} (LeetCode ${p.leetcodeId})`,
+    `【分类】${p.category}`,
+    `【难度】${p.difficulty}`,
+    '',
+    `【题目描述】${p.description}`,
+    '',
+    `【核心思路】${p.hint.core}`,
+  ]
+  if (p.hint.keyPoints?.length) {
+    parts.push('', '【关键步骤】')
+    p.hint.keyPoints.forEach((k, i) => parts.push(`${i + 1}. ${k}`))
+  }
+  return parts.join('\n')
 }
 
 export function ProblemDetail() {
@@ -118,7 +139,12 @@ export function ProblemDetail() {
           </div>
         </div>
         <OrnamentalRule />
-        <LearnedStamp section="leetcode" id={numId} total={totalProblems} />
+        {/* ── 操作栏：已学标记 + ChatGPT 解读 ── */}
+        <div className="flex items-center justify-center gap-2 py-4">
+          <LearnedStamp section="leetcode" id={numId} total={totalProblems} />
+          <OpenInChatGPT prompt={buildPrompt(problem)} />
+        </div>
+
         <div className="mt-8">
           <button
             onClick={() => setDescOpen(!descOpen)}

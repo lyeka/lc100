@@ -1,5 +1,5 @@
 /**
- * [INPUT]: react-router (useParams, Link), @/data/interviews, @/components/ui/button, @/components/LearnedStamp
+ * [INPUT]: react-router (useParams, Link), @/data/interviews, @/components/ui/button, @/components/LearnedStamp, @/components/OpenInChatGPT
  * [OUTPUT]: AgentDetail 古典书页阅读页
  * [POS]: 路由 /agent/:id，Agent 面试题阅读体验核心
  *        书页容器 bg-card shadow-2xl 浮于深色桌面
@@ -9,6 +9,7 @@
 import { useParams, Link } from 'react-router'
 import { interviews, interviewMap } from '@/data/interviews'
 import { LearnedStamp } from '@/components/LearnedStamp'
+import { OpenInChatGPT } from '@/components/OpenInChatGPT'
 import { Button } from '@/components/ui/button'
 
 /* ── 中文数字 ── */
@@ -39,6 +40,27 @@ function Divider() {
       ·　·　·
     </div>
   )
+}
+
+/* ── 构建 ChatGPT prompt ── */
+function buildPrompt(q) {
+  const parts = [
+    '请你通俗易懂的解释以下面试题，帮我理解核心概念：',
+    '',
+    `【题目】${q.title}`,
+    `【分类】${q.category}`,
+    `【难度】${q.level}`,
+  ]
+  if (q.background) parts.push('', `【背景】${q.background}`)
+  if (q.answerPoints?.length) {
+    parts.push('', '【参考要点】')
+    q.answerPoints.forEach((p, i) => parts.push(`${i + 1}. ${p}`))
+  }
+  if (q.followUp?.length) {
+    parts.push('', '【追问】')
+    q.followUp.forEach((p, i) => parts.push(`${i + 1}. ${p}`))
+  }
+  return parts.join('\n')
 }
 
 export function AgentDetail() {
@@ -114,7 +136,12 @@ export function AgentDetail() {
           </div>
         </div>
         <OrnamentalRule />
-        <LearnedStamp section="agent" id={id} total={interviews.length} />
+        {/* ── 操作栏：已学标记 + ChatGPT 解读 ── */}
+        <div className="flex items-center justify-center gap-2 py-4">
+          <LearnedStamp section="agent" id={id} total={interviews.length} />
+          <OpenInChatGPT prompt={buildPrompt(question)} />
+        </div>
+
         {question.background && (
           <>
             <div className="mt-8">
@@ -153,7 +180,7 @@ export function AgentDetail() {
         )}
 
         {/* ── 追问（可选）── */}
-        {question.followUp.length > 0 && (
+        {question.followUp?.length > 0 && (
           <>
             <Divider />
             <section>
