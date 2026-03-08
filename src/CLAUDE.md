@@ -24,7 +24,7 @@ Hero.jsx:       旧版首屏 Hero（已不被引用，待清理）
 ui/             shadcn/ui 原子组件
 
 ### pages/
-Landing.jsx:       路由 /，总目录页：三卷导航(题库/Agent/Go) + 总数统计 + 分类预览
+Landing.jsx:       路由 /，ZIMA 画廊风格总目录：Museum Frame + Hero "Agentic Interview" + Unsplash 画廊卡片 + Content Split
 Home.jsx:          路由 /leetcode，LeetCode 古典目录页：分类/难度筛选 + 点引线目录行
 ProblemDetail.jsx: 路由 /problem/:id，阅读核心
 AgentHome.jsx:     路由 /agent，Agent 面试题古典目录页（8 分类 + 等级筛选）

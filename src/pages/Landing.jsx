@@ -1,8 +1,8 @@
 /**
  * [INPUT]: react-router (Link), framer-motion (motion), @/lib/progress (useProgressStats),
  *          @/data/problems, @/data/interviews, @/data/goInterviews
- * [OUTPUT]: Landing 总目录页
- * [POS]: 路由 /，全站入口，三卷导航 + 总数统计，设计语言与 Home/AgentHome/GoHome 完全一致
+ * [OUTPUT]: Landing 总目录页 — ZIMA 博物馆画廊风格
+ * [POS]: 路由 /，全站入口，Museum Frame + Hero 标题 + 画廊卡片 + 宣言统计
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { Link } from 'react-router'
@@ -21,34 +21,7 @@ const TOTALS = {
   go: goInterviews.length,
 }
 
-const VOLUMES = [
-  {
-    title: '题　库',
-    subtitle: 'LeetCode Hot 100 · 算法与数据结构',
-    to: '/leetcode',
-    section: 'leetcode',
-    categories: categories,
-    total: problems.length,
-  },
-  {
-    title: 'Agent 面试',
-    subtitle: 'AI Agent · 推理架构 · 工具系统 · 多智能体',
-    to: '/agent',
-    section: 'agent',
-    categories: interviewCategories,
-    total: interviews.length,
-  },
-  {
-    title: 'Go 面试',
-    subtitle: '并发模型 · 内存管理 · 接口设计 · 性能调优',
-    to: '/go',
-    section: 'go',
-    categories: goInterviewCategories,
-    total: goInterviews.length,
-  },
-]
-
-/* ── 分类预览：最多显示 5 个，超出加 … ── */
+/* ── 分类预览 ── */
 const MAX_PREVIEW = 5
 
 function categoryPreview(cats) {
@@ -57,83 +30,203 @@ function categoryPreview(cats) {
   return visible.join(' · ') + suffix
 }
 
+const VOLUMES = [
+  {
+    title: '题　库',
+    subtitle: 'LeetCode Hot 100 · 算法与数据结构',
+    to: '/leetcode',
+    section: 'leetcode',
+    categories: categories,
+    preview: categoryPreview(categories),
+    total: problems.length,
+    image: '/1.png',
+  },
+  {
+    title: 'Agent 面试',
+    subtitle: 'AI Agent · 推理架构 · 工具系统 · 多智能体',
+    to: '/agent',
+    section: 'agent',
+    categories: interviewCategories,
+    preview: categoryPreview(interviewCategories),
+    total: interviews.length,
+    image: '/2.png',
+  },
+  {
+    title: 'Go 面试',
+    subtitle: '并发模型 · 内存管理 · 接口设计 · 性能调优',
+    to: '/go',
+    section: 'go',
+    categories: goInterviewCategories,
+    preview: categoryPreview(goInterviewCategories),
+    total: goInterviews.length,
+    image: '/3.png',
+  },
+]
+
+/* ── 缓出贝塞尔 ── */
+const EASE_OUT = [0.16, 1, 0.3, 1]
+
 export function Landing() {
   const stats = useProgressStats(TOTALS)
   const totalAll = TOTALS.leetcode + TOTALS.agent + TOTALS.go
   const totalLearned = stats.leetcode.count + stats.agent.count + stats.go.count
+  const totalCategories = categories.length + interviewCategories.length + goInterviewCategories.length
+
+  const infoRows = [
+    { label: '卷册', value: '三卷' },
+    { label: '总题数', value: `${totalAll} 篇` },
+    { label: '已完成', value: `${totalLearned} 篇` },
+    { label: '分类', value: `${totalCategories} 个` },
+  ]
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16">
+    <main className="px-4 py-8 sm:px-8 sm:py-12">
+      <div className="mx-auto max-w-6xl border-2 border-border rounded-[20px]
+                      bg-background/50 backdrop-blur-sm overflow-hidden">
 
-      {/* ════════════════════════════════════════
-         标题区 — 与 Home.jsx 同款
-         ════════════════════════════════════════ */}
-      <div className="text-center mb-12">
-        <h1 className="text-2xl tracking-[0.3em] text-foreground mb-4">
-          ·　目　录　·
-        </h1>
-        <div className="flex items-center justify-center gap-3 text-primary/40 text-sm mb-6">
-          <span>─────────</span>
-          <span className="text-primary">✦</span>
-          <span>─────────</span>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {totalAll} 篇 · 已读 {totalLearned}
-        </p>
-      </div>
+        {/* ════════════════════════════════════════
+           Hero — Agentic Interview
+           ════════════════════════════════════════ */}
+        <motion.section
+          className="px-8 pt-20 pb-16 text-center"
+          initial={{ opacity: 0, scale: 0.92 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, ease: EASE_OUT }}
+        >
+          <h1
+            className="text-[clamp(3rem,10vw,7rem)] font-bold leading-[0.85]
+                       tracking-tighter bg-clip-text text-transparent"
+            style={{
+              backgroundImage: 'linear-gradient(135deg, var(--primary), var(--chart-1), var(--chart-2))',
+            }}
+          >
+            Agentic
+            <br />
+            Interview
+          </h1>
+          <p className="mt-6 text-lg text-muted-foreground tracking-wide">
+            算法 · AI Agent · Go — 三卷精选
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground/70">
+            {totalAll} 篇 · 已读 {totalLearned}
+          </p>
+        </motion.section>
 
-      {/* ════════════════════════════════════════
-         三卷条目
-         ════════════════════════════════════════ */}
-      <div className="space-y-12">
-        {VOLUMES.map((vol, i) => {
-          const s = stats[vol.section]
-          return (
-            <motion.div
-              key={vol.section}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: i * 0.1 }}
-            >
-              <Link
-                to={vol.to}
-                className="group block py-4 px-4 -mx-4 transition-colors hover:bg-card/50"
+        {/* ════════════════════════════════════════
+           画廊 — 3 张 Unsplash 卡片
+           ════════════════════════════════════════ */}
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 px-8 pb-16">
+          {VOLUMES.map((vol, i) => {
+            const s = stats[vol.section]
+            return (
+              <motion.div
+                key={vol.section}
+                initial={{ opacity: 0, y: 40 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: i * 0.15, ease: EASE_OUT }}
               >
-                {/* PART 标题 */}
-                <div className="mb-4">
-                  <div className="text-[11px] uppercase tracking-[0.4em] text-muted-foreground mb-1">
-                    Part {ROMAN[i]}
+                <Link to={vol.to} className="block rounded-3xl focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+                  <div className="group relative overflow-hidden rounded-3xl cursor-pointer bg-muted aspect-[3/4]">
+
+                    {/* 图片层 */}
+                    <img
+                      src={vol.image}
+                      alt=""
+                      role="presentation"
+                      className="absolute inset-0 w-full h-full object-cover
+                                 transition-transform duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)]
+                                 group-hover:scale-[1.08]"
+                    />
+
+                    {/* 常驻底部暗角 — 保证默认标题可读 */}
+                    <div className="absolute inset-0
+                                    bg-gradient-to-t from-[var(--gallery-overlay)] via-transparent to-transparent" />
+
+                    {/* 默认标题 — 卡片底部 */}
+                    <div className="absolute bottom-0 inset-x-0 p-6 z-10
+                                    transition-opacity duration-300 group-hover:opacity-0">
+                      <span className="text-[11px] uppercase tracking-[0.4em] text-gallery-overlay-fg" style={{ opacity: 0.7 }}>
+                        Part {ROMAN[i]}
+                      </span>
+                      <p className="text-xl tracking-wider text-gallery-overlay-fg">
+                        {vol.title}
+                      </p>
+                    </div>
+
+                    {/* Hover overlay — 全覆盖暗层 + 详细信息 */}
+                    <div className="absolute inset-0 z-20
+                                    opacity-0 group-hover:opacity-100
+                                    transition-opacity duration-500"
+                         style={{
+                           background: 'linear-gradient(to bottom, transparent 10%, var(--gallery-overlay) 60%)',
+                         }}>
+                      <div className="absolute bottom-0 inset-x-0 p-6
+                                      translate-y-4 group-hover:translate-y-0
+                                      transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
+                        <p className="text-[11px] uppercase tracking-[0.3em] text-gallery-overlay-fg mb-1" style={{ opacity: 0.6 }}>
+                          Part {ROMAN[i]}
+                        </p>
+                        <h3 className="text-xl text-gallery-overlay-fg font-medium mb-2">
+                          {vol.title}
+                        </h3>
+                        <p className="text-sm text-gallery-overlay-fg mb-1" style={{ opacity: 0.8 }}>
+                          {vol.subtitle}
+                        </p>
+                        <p className="text-xs text-gallery-overlay-fg mb-3" style={{ opacity: 0.6 }}>
+                          {vol.preview}
+                        </p>
+                        <div className="flex items-center justify-between text-xs text-gallery-overlay-fg" style={{ opacity: 0.6 }}>
+                          <span>{vol.categories.length} 分类 · {vol.total} 篇</span>
+                          <span>{s.count} / {s.total}</span>
+                        </div>
+                      </div>
+                    </div>
+
                   </div>
-                  <div className="text-lg tracking-[0.15em] text-foreground group-hover:text-primary transition-colors">
-                    {vol.title}
-                  </div>
-                  <div className="mt-2 w-full border-t border-border" />
-                </div>
+                </Link>
+              </motion.div>
+            )
+          })}
+        </section>
 
-                {/* 副标题 */}
-                <p className="text-sm text-muted-foreground mb-3">
-                  {vol.subtitle}
-                </p>
+        {/* ════════════════════════════════════════
+           宣言 + 统计 — Content Split
+           ════════════════════════════════════════ */}
+        <motion.section
+          className="grid grid-cols-1 md:grid-cols-2 gap-0 border-t border-border"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.6 }}
+        >
+          {/* 左列：宣言 */}
+          <div className="flex items-center justify-center p-12 md:p-16 md:border-r md:border-border">
+            <div className="text-center md:text-left">
+              <p className="text-3xl sm:text-4xl font-bold text-foreground leading-tight tracking-tight">
+                从困惑
+                <br />
+                到彼岸
+              </p>
+              <p className="mt-4 text-sm text-muted-foreground">
+                三卷精选 · {totalAll} 道题 · 认知跃迁
+              </p>
+            </div>
+          </div>
 
-                {/* 分类预览 */}
-                <p className="text-xs text-muted-foreground/70 mb-4">
-                  {categoryPreview(vol.categories)}
-                </p>
+          {/* 右列：统计行 */}
+          <div className="flex flex-col justify-center p-8 md:p-12">
+            {infoRows.map((row) => (
+              <div
+                key={row.label}
+                className="flex items-baseline justify-between py-4
+                           border-t border-border last:border-b last:border-border"
+              >
+                <span className="text-sm font-medium text-foreground">{row.label}</span>
+                <span className="text-sm text-muted-foreground">{row.value}</span>
+              </div>
+            ))}
+          </div>
+        </motion.section>
 
-                {/* 统计行 + 点引线 + 进度 */}
-                <div className="flex items-baseline gap-3">
-                  <span className="flex-none text-xs text-muted-foreground">
-                    {vol.categories.length} 个分类 · {vol.total} 篇
-                  </span>
-                  <span className="flex-1 border-b border-dotted border-border/50 translate-y-[-4px] min-w-[20px]" />
-                  <span className="flex-none text-xs text-primary/70">
-                    {s.count} / {s.total}
-                  </span>
-                </div>
-              </Link>
-            </motion.div>
-          )
-        })}
       </div>
     </main>
   )

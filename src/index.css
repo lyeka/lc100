@@ -70,6 +70,8 @@
     --shadow-opacity: var(--shadow-opacity);
     --color-shadow-color: var(--shadow-color);
     --color-destructive-foreground: var(--destructive-foreground);
+    --color-gallery-overlay: var(--gallery-overlay);
+    --color-gallery-overlay-fg: var(--gallery-overlay-fg);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -110,6 +112,8 @@
     --sidebar-border: #34495e;
     --sidebar-ring: #cfa875;
     --destructive-foreground: #e0e6ed;
+    --gallery-overlay: rgba(10, 18, 28, 0.88);
+    --gallery-overlay-fg: #f0ece4;
     --font-sans: "Alan Sans", "Songti SC", "SimSun", serif;
     --font-serif: "Alan Sans", "Songti SC", "SimSun", serif;
     --font-mono: "Alan Sans", "Songti SC", "SimSun", monospace;
@@ -169,6 +173,8 @@
     --sidebar-accent-foreground: #2c1810;
     --sidebar-border: #d4c9b8;
     --sidebar-ring: #8b6914;
+    --gallery-overlay: rgba(30, 20, 10, 0.85);
+    --gallery-overlay-fg: #faf7f2;
     --shadow-color: hsl(30 30% 20%);
     --shadow-opacity: 0.12;
     --shadow-2xs: 0px 1px 2px 0px hsl(30 20% 30% / 0.06);
@@ -218,6 +224,8 @@
     --sidebar-accent-foreground: #1a1a1a;
     --sidebar-border: #e5e5e0;
     --sidebar-ring: #b08d5e;
+    --gallery-overlay: rgba(20, 20, 20, 0.85);
+    --gallery-overlay-fg: #fafaf8;
     --shadow-color: hsl(0 0% 50%);
     --shadow-opacity: 0.08;
     --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 50% / 0.05);
@@ -267,6 +275,8 @@
     --sidebar-accent-foreground: #3a2518;
     --sidebar-border: #c9b898;
     --sidebar-ring: #7a5c12;
+    --gallery-overlay: rgba(35, 22, 12, 0.85);
+    --gallery-overlay-fg: #f5eede;
     --shadow-color: hsl(30 30% 25%);
     --shadow-opacity: 0.15;
     --shadow-2xs: 0px 1px 2px 0px hsl(30 25% 25% / 0.08);
