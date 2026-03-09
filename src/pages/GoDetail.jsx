@@ -1,5 +1,5 @@
 /**
- * [INPUT]: react-router (useParams, Link), @/data/goInterviews, @/components/ui/button, @/components/CodeBlock, @/components/LearnedStamp, @/components/OpenInChatGPT
+ * [INPUT]: react-router (useParams, Link), @/data/goInterviews, @/components/ui/button, @/components/CodeBlock, @/components/LearnedStamp, @/components/OpenInChatGPT, @/lib/interviewPrompts, lucide-react (GraduationCap)
  * [OUTPUT]: GoDetail 古典书页阅读页
  * [POS]: 路由 /go/:id，Go 面试题阅读体验核心
  *        书页容器 bg-card shadow-2xl 浮于深色桌面
@@ -8,10 +8,12 @@
  */
 import { useParams, Link } from 'react-router'
 import { goInterviews, goInterviewMap } from '@/data/goInterviews'
+import { GraduationCap } from 'lucide-react'
 import { LearnedStamp } from '@/components/LearnedStamp'
 import { OpenInChatGPT } from '@/components/OpenInChatGPT'
 import { Button } from '@/components/ui/button'
 import { CodeBlock } from '@/components/CodeBlock'
+import { buildExplainPrompt, buildAnswerPrompt, ROLE_MAP } from '@/lib/interviewPrompts'
 
 /* ── 中文数字 ── */
 const CN_NUM = ['一','二','三','四','五','六','七','八','九','十','十一','十二']
@@ -43,30 +45,6 @@ function Divider() {
   )
 }
 
-/* ── 构建 ChatGPT prompt ── */
-function buildPrompt(q) {
-  const parts = [
-    '请你通俗易懂的解释以下面试题，帮我理解核心概念：',
-    '',
-    `【题目】${q.title}`,
-    `【分类】${q.category}`,
-    `【难度】${q.level}`,
-  ]
-  if (q.background) parts.push('', `【背景】${q.background}`)
-  if (q.answerPoints?.length) {
-    parts.push('', '【参考要点】')
-    q.answerPoints.forEach((p, i) => parts.push(`${i + 1}. ${p}`))
-  }
-  if (q.codeExample) {
-    parts.push('', '【代码示例】', '```' + (q.codeExample.language || 'go'), q.codeExample.code, '```')
-    if (q.codeExample.explanation) parts.push(q.codeExample.explanation)
-  }
-  if (q.followUp?.length) {
-    parts.push('', '【追问】')
-    q.followUp.forEach((p, i) => parts.push(`${i + 1}. ${p}`))
-  }
-  return parts.join('\n')
-}
 
 export function GoDetail() {
   const { id } = useParams()
@@ -141,10 +119,16 @@ export function GoDetail() {
           </div>
         </div>
         <OrnamentalRule />
-        {/* ── 操作栏：已学标记 + ChatGPT 解读 ── */}
-        <div className="flex items-center justify-center gap-2 py-4">
+        {/* ── 操作栏：已学标记 + ChatGPT 解读 + 满分回答 ── */}
+        <div className="flex items-center justify-center gap-2 py-4 flex-wrap">
           <LearnedStamp section="go" id={id} total={goInterviews.length} />
-          <OpenInChatGPT prompt={buildPrompt(question)} />
+          <OpenInChatGPT prompt={buildExplainPrompt(question)} />
+          <OpenInChatGPT
+            prompt={buildAnswerPrompt(question, ROLE_MAP.go)}
+            label="ChatGPT 解答"
+            icon={GraduationCap}
+            ariaLabel="让 ChatGPT 生成面试解答（新标签页打开）"
+          />
         </div>
 
         {question.background && (

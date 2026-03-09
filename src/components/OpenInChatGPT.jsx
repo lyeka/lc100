@@ -1,7 +1,7 @@
 /**
  * [INPUT]: lucide-react (ExternalLink)
- * [OUTPUT]: OpenInChatGPT 组件 — 一键在 ChatGPT 中打开问题的外链按钮
- * [POS]: Detail 页面的辅助交互点，与 LearnedStamp 并排，被 ProblemDetail / AgentDetail / GoDetail 消费
+ * [OUTPUT]: OpenInChatGPT 组件 — ChatGPT 外链按钮（可配置 label/icon/ariaLabel）
+ * [POS]: Detail 页面操作栏交互点，与 LearnedStamp 并排，承载「解读」和「满分回答」两种 prompt 场景
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
@@ -12,7 +12,12 @@ const BASE_URL = 'https://chatgpt.com/?prompt='
 const MAX_URL_LEN = 8000
 const PROMPT_BUDGET = MAX_URL_LEN - BASE_URL.length
 
-export function OpenInChatGPT({ prompt }) {
+export function OpenInChatGPT({
+  prompt,
+  label = 'ChatGPT 解读',
+  icon: Icon = ExternalLink,
+  ariaLabel = '在 ChatGPT 中解读此题（新标签页打开）',
+}) {
   if (!prompt) return null
 
   const encoded = encodeURIComponent(prompt)
@@ -26,11 +31,11 @@ export function OpenInChatGPT({ prompt }) {
       href={`${BASE_URL}${safeEncoded}`}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="在 ChatGPT 中解读此题（新标签页打开）"
+      aria-label={ariaLabel}
       className="flex items-center gap-2 px-4 py-2 rounded-full cursor-pointer transition-colors duration-300 select-none text-muted-foreground/30 hover:text-muted-foreground/60"
     >
-      <ExternalLink size={14} />
-      <span className="text-xs tracking-wider">ChatGPT 解读</span>
+      <Icon size={14} />
+      <span className="text-xs tracking-wider">{label}</span>
     </a>
   )
 }
