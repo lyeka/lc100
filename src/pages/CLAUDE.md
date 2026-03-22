@@ -15,6 +15,8 @@ MysqlHome.jsx:     路由 /mysql，MySQL 面试题古典目录页：6 大分类(
 MysqlDetail.jsx:   路由 /mysql/:id，MySQL 面试题书页阅读：bg-card shadow-2xl 纸页容器 → 装饰线章节标题 → 金线引用背景说明(可选) → 中文数字参考要点 → CodeBlock SQL 代码示例(可选) → 追问(可选) → 纯文字导航
 RedisHome.jsx:     路由 /redis，Redis 面试题古典目录页：8 大分类(PART 罗马数字) + 点引线目录行 + L2/L2-L3/L3 等级筛选
 RedisDetail.jsx:   路由 /redis/:id，Redis 面试题书页阅读：bg-card shadow-2xl 纸页容器 → 装饰线章节标题 → 金线引用背景说明(可选) → 中文数字参考要点 → CodeBlock 代码示例(可选) → 追问(可选) → 纯文字导航
+KafkaHome.jsx:     路由 /kafka，Kafka 面试题古典目录页：8 大分类(PART 罗马数字) + 点引线目录行 + L2/L2-L3/L3 等级筛选
+KafkaDetail.jsx:   路由 /kafka/:id，Kafka 面试题书页阅读：bg-card shadow-2xl 纸页容器 → 装饰线章节标题 → 金线引用背景说明(可选) → 中文数字参考要点 → CodeBlock 代码示例(可选) → 追问(可选) → 纯文字导航
 DesignSystem.jsx:  路由 /design-system，设计系统 showcase
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

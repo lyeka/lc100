@@ -2,7 +2,7 @@
  * [INPUT]: react-router, @/components/Header, @/components/Footer, @/pages/*
  * [OUTPUT]: App 根组件，包含路由结构和全局布局
  * [POS]: 应用入口，定义路由树，组合 Header + 页面内容 + Footer
- *        路由：/, /leetcode, /problem/:id, /agent, /agent/:id, /go, /go/:id, /mysql, /mysql/:id, /redis, /redis/:id, /design-system
+ *        路由：/, /leetcode, /problem/:id, /agent, /agent/:id, /go, /go/:id, /mysql, /mysql/:id, /redis, /redis/:id, /kafka, /kafka/:id, /design-system
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { BrowserRouter, Routes, Route } from 'react-router'
@@ -19,6 +19,8 @@ import { MysqlHome } from '@/pages/MysqlHome'
 import { MysqlDetail } from '@/pages/MysqlDetail'
 import { RedisHome } from '@/pages/RedisHome'
 import { RedisDetail } from '@/pages/RedisDetail'
+import { KafkaHome } from '@/pages/KafkaHome'
+import { KafkaDetail } from '@/pages/KafkaDetail'
 import { DesignSystem } from '@/pages/DesignSystem'
 
 function Layout({ children }) {
@@ -47,6 +49,8 @@ export default function App() {
           <Route path="/mysql/:id" element={<MysqlDetail />} />
           <Route path="/redis" element={<RedisHome />} />
           <Route path="/redis/:id" element={<RedisDetail />} />
+          <Route path="/kafka" element={<KafkaHome />} />
+          <Route path="/kafka/:id" element={<KafkaDetail />} />
           <Route path="/design-system" element={<DesignSystem />} />
         </Routes>
       </Layout>

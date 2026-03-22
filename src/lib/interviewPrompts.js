@@ -11,6 +11,7 @@ export const ROLE_MAP = {
   go:    '资深 Go 语言开发工程师',
   redis: '资深 Redis 技术专家',
   mysql: '资深 MySQL 数据库工程师',
+  kafka: '资深 Kafka 架构师',
 }
 
 /* ── 拼接题目上下文（解读 / 满分回答共享） ── */

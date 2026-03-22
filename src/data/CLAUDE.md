@@ -7,5 +7,6 @@ interviews.js:     import.meta.glob 静态加载 /agent-interview-json/*.json（
 goInterviews.js:   import.meta.glob 静态加载 /go-interview-json/*.json（每文件为数组，flatMap 展平），导出 goInterviews(排序数组) / goInterviewMap(Map<string>) / goInterviewCategories(按 categoryId 排序)
 mysqlInterviews.js: import.meta.glob 静态加载 /mysql-interview-json/*.json（每文件为数组，flatMap 展平），导出 mysqlInterviews(排序数组) / mysqlInterviewMap(Map<string>) / mysqlInterviewCategories(按 categoryId 排序)
 redisInterviews.js: import.meta.glob 静态加载 /redis-interview-json/*.json（每文件为数组，flatMap 展平），导出 redisInterviews(排序数组) / redisInterviewMap(Map<string>) / redisInterviewCategories(按 categoryId 排序)
+kafkaInterviews.js: import.meta.glob 静态加载 /kafka-interview-json/*.json（每文件为数组，flatMap 展平），导出 kafkaInterviews(排序数组) / kafkaInterviewMap(Map<string>) / kafkaInterviewCategories(按 categoryId 排序)
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

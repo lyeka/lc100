@@ -1,6 +1,6 @@
 /**
  * [INPUT]: react-router (Link), framer-motion (motion), @/lib/progress (useProgressStats),
- *          @/data/problems, @/data/interviews, @/data/goInterviews, @/data/mysqlInterviews, @/data/redisInterviews
+ *          @/data/problems, @/data/interviews, @/data/goInterviews, @/data/mysqlInterviews, @/data/redisInterviews, @/data/kafkaInterviews
  * [OUTPUT]: Landing 总目录页 — ZIMA 博物馆画廊风格
  * [POS]: 路由 /，全站入口，Museum Frame + Hero 标题 + 画廊卡片 + 宣言统计
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -13,9 +13,10 @@ import { interviews, interviewCategories } from '@/data/interviews'
 import { goInterviews, goInterviewCategories } from '@/data/goInterviews'
 import { mysqlInterviews, mysqlInterviewCategories } from '@/data/mysqlInterviews'
 import { redisInterviews, redisInterviewCategories } from '@/data/redisInterviews'
+import { kafkaInterviews, kafkaInterviewCategories } from '@/data/kafkaInterviews'
 
 /* ── 常量 ── */
-const ROMAN = ['I', 'II', 'III', 'IV', 'V']
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI']
 
 const TOTALS = {
   leetcode: problems.length,
@@ -23,6 +24,7 @@ const TOTALS = {
   go: goInterviews.length,
   mysql: mysqlInterviews.length,
   redis: redisInterviews.length,
+  kafka: kafkaInterviews.length,
 }
 
 /* ── 分类预览 ── */
@@ -85,6 +87,16 @@ const VOLUMES = [
     total: redisInterviews.length,
     image: '/5.png',
   },
+  {
+    title: 'Kafka 面试',
+    subtitle: '复制机制 · 精确一次 · 消费者组 · 性能调优 · 运维',
+    to: '/kafka',
+    section: 'kafka',
+    categories: kafkaInterviewCategories,
+    preview: categoryPreview(kafkaInterviewCategories),
+    total: kafkaInterviews.length,
+    image: '/6.png',
+  },
 ]
 
 /* ── 缓出贝塞尔 ── */
@@ -92,12 +104,12 @@ const EASE_OUT = [0.16, 1, 0.3, 1]
 
 export function Landing() {
   const stats = useProgressStats(TOTALS)
-  const totalAll = TOTALS.leetcode + TOTALS.agent + TOTALS.go + TOTALS.mysql + TOTALS.redis
-  const totalLearned = stats.leetcode.count + stats.agent.count + stats.go.count + stats.mysql.count + stats.redis.count
-  const totalCategories = categories.length + interviewCategories.length + goInterviewCategories.length + mysqlInterviewCategories.length + redisInterviewCategories.length
+  const totalAll = TOTALS.leetcode + TOTALS.agent + TOTALS.go + TOTALS.mysql + TOTALS.redis + TOTALS.kafka
+  const totalLearned = stats.leetcode.count + stats.agent.count + stats.go.count + stats.mysql.count + stats.redis.count + stats.kafka.count
+  const totalCategories = categories.length + interviewCategories.length + goInterviewCategories.length + mysqlInterviewCategories.length + redisInterviewCategories.length + kafkaInterviewCategories.length
 
   const infoRows = [
-    { label: '卷册', value: '五卷' },
+    { label: '卷册', value: '六卷' },
     { label: '总题数', value: `${totalAll} 篇` },
     { label: '已完成', value: `${totalLearned} 篇` },
     { label: '分类', value: `${totalCategories} 个` },
@@ -129,7 +141,7 @@ export function Landing() {
             Interview
           </h1>
           <p className="mt-6 text-lg text-muted-foreground tracking-wide">
-            算法 · AI Agent · Go · MySQL · Redis — 五卷精选
+            算法 · AI Agent · Go · MySQL · Redis · Kafka — 六卷精选
           </p>
           <p className="mt-2 text-sm text-muted-foreground/70">
             {totalAll} 篇 · 已读 {totalLearned}
@@ -231,7 +243,7 @@ export function Landing() {
                 到彼岸
               </p>
               <p className="mt-4 text-sm text-muted-foreground">
-                五卷精选 · {totalAll} 道题 · 认知跃迁
+                六卷精选 · {totalAll} 道题 · 认知跃迁
               </p>
             </div>
           </div>
