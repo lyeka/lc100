@@ -1,5 +1,5 @@
 /**
- * [INPUT]: react-router (Link), @/data/problems, @/data/interviews, @/data/goInterviews
+ * [INPUT]: react-router (Link), @/data/problems, @/data/interviews, @/data/goInterviews, @/data/mysqlInterviews, @/data/redisInterviews, @/data/kafkaInterviews
  * [OUTPUT]: Footer 版记组件（居中装饰线 + 导航 + 统计）
  * [POS]: 全局布局组件，古典版记风格，所有页面底部
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -8,12 +8,18 @@ import { Link } from 'react-router'
 import { problems } from '@/data/problems'
 import { interviews } from '@/data/interviews'
 import { goInterviews } from '@/data/goInterviews'
+import { mysqlInterviews } from '@/data/mysqlInterviews'
+import { redisInterviews } from '@/data/redisInterviews'
+import { kafkaInterviews } from '@/data/kafkaInterviews'
 
 const links = [
-  { to: '/',             label: '首页' },
-  { to: '/leetcode',     label: '题库' },
-  { to: '/agent',        label: 'Agent' },
-  { to: '/go',           label: 'Go' },
+  { to: '/',              label: '首页' },
+  { to: '/leetcode',      label: '题库' },
+  { to: '/agent',         label: 'Agent' },
+  { to: '/go',            label: 'Go' },
+  { to: '/mysql',         label: 'MySQL' },
+  { to: '/redis',         label: 'Redis' },
+  { to: '/kafka',         label: 'Kafka' },
   { to: '/design-system', label: '设计系统' },
 ]
 
@@ -30,7 +36,7 @@ export function Footer() {
         </div>
 
         {/* ── 导航链接 — 居中 · 分隔 ── */}
-        <nav className="flex items-center justify-center text-sm text-muted-foreground mb-4">
+        <nav className="flex flex-wrap items-center justify-center text-sm text-muted-foreground mb-4">
           {links.map(({ to, label }, i) => (
             <span key={to} className="flex items-center">
               {i > 0 && <span className="mx-2 text-border select-none">·</span>}
@@ -43,7 +49,7 @@ export function Footer() {
 
         {/* ── 统计 ── */}
         <p className="text-center text-xs text-muted-foreground">
-          题库 {problems.length} · Agent {interviews.length} · Go {goInterviews.length}
+          题库 {problems.length} · Agent {interviews.length} · Go {goInterviews.length} · MySQL {mysqlInterviews.length} · Redis {redisInterviews.length} · Kafka {kafkaInterviews.length}
         </p>
 
       </div>

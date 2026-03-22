@@ -5,7 +5,7 @@
 
 ## 成员清单
 main.jsx:   应用启动点，ReactDOM.createRoot + TooltipProvider
-App.jsx:    路由根组件，BrowserRouter + Layout + Routes（/, /leetcode, /problem/:id, /agent, /agent/:id, /go, /go/:id, /mysql, /mysql/:id, /redis, /redis/:id, /design-system）
+App.jsx:    路由根组件，BrowserRouter + Layout + Routes（/, /leetcode, /problem/:id, /agent, /agent/:id, /go, /go/:id, /mysql, /mysql/:id, /redis, /redis/:id, /kafka, /kafka/:id, /design-system）
 index.css:  全局样式，Tailwind + shadcn + Amethyst Haze 主题变量
 
 ## 子目录
@@ -16,6 +16,7 @@ interviews.js:  import.meta.glob 加载 74 题 Agent 面试 JSON（flatMap），
 goInterviews.js: import.meta.glob 加载 40 题 Go 面试 JSON（flatMap），导出 goInterviews / goInterviewMap / goInterviewCategories
 mysqlInterviews.js: import.meta.glob 加载 52 题 MySQL 面试 JSON（flatMap），导出 mysqlInterviews / mysqlInterviewMap / mysqlInterviewCategories
 redisInterviews.js: import.meta.glob 加载 58 题 Redis 面试 JSON（flatMap），导出 redisInterviews / redisInterviewMap / redisInterviewCategories
+kafkaInterviews.js: import.meta.glob 加载 56 题 Kafka 面试 JSON（flatMap），导出 kafkaInterviews / kafkaInterviewMap / kafkaInterviewCategories
 
 ### components/
 Header.jsx:     顶部导航（题库 + 设计系统）
@@ -37,11 +38,13 @@ MysqlHome.jsx:     路由 /mysql，MySQL 面试题古典目录页（6 分类 + �
 MysqlDetail.jsx:   路由 /mysql/:id，MySQL 面试题书页阅读（背景 → 要点 → SQL 代码示例 → 追问）
 RedisHome.jsx:     路由 /redis，Redis 面试题古典目录页（8 分类 + 等级筛选）
 RedisDetail.jsx:   路由 /redis/:id，Redis 面试题书页阅读（背景 → 要点 → 代码示例 → 追问）
+KafkaHome.jsx:     路由 /kafka，Kafka 面试题古典目录页（8 分类 + 等级筛选）
+KafkaDetail.jsx:   路由 /kafka/:id，Kafka 面试题书页阅读（背景 → 要点 → 代码示例 → 追问）
 DesignSystem.jsx:  路由 /design-system，组件展示
 
 ### lib/
 utils.js:             cn() 类名合并
 progress.js:          学习进度 store（useSyncExternalStore + localStorage），导出 useProgress / useProgressStats
-interviewPrompts.js:  面试题 ChatGPT prompt 构建器（buildExplainPrompt / buildAnswerPrompt / ROLE_MAP），被 4 个 Detail 页面消费
+interviewPrompts.js:  面试题 ChatGPT prompt 构建器（buildExplainPrompt / buildAnswerPrompt / ROLE_MAP），被 5 个 Detail 页面消费
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

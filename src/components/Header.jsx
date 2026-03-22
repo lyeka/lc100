@@ -1,6 +1,6 @@
 /**
  * [INPUT]: react-router (Link, useLocation), @/components/ThemeSelector, @/lib/progress (useProgressStats),
- *          @/data/problems, @/data/interviews, @/data/goInterviews, @/data/mysqlInterviews, @/data/redisInterviews, @/components/ui/tooltip
+ *          @/data/problems, @/data/interviews, @/data/goInterviews, @/data/mysqlInterviews, @/data/redisInterviews, @/data/kafkaInterviews, @/components/ui/tooltip
  * [OUTPUT]: Header 页眉组件（纯文字导航 + · 分隔 + 主题色点）
  * [POS]: 全局布局组件，sticky 定位，古典页眉风格，进度信息藏于 Tooltip
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -14,6 +14,7 @@ import { interviews } from '@/data/interviews'
 import { goInterviews } from '@/data/goInterviews'
 import { mysqlInterviews } from '@/data/mysqlInterviews'
 import { redisInterviews } from '@/data/redisInterviews'
+import { kafkaInterviews } from '@/data/kafkaInterviews'
 
 const TOTALS = {
   leetcode: problems.length,
@@ -21,6 +22,7 @@ const TOTALS = {
   go: goInterviews.length,
   mysql: mysqlInterviews.length,
   redis: redisInterviews.length,
+  kafka: kafkaInterviews.length,
 }
 
 const navLinks = [
@@ -30,6 +32,7 @@ const navLinks = [
   { to: '/go',       label: 'Go',    section: 'go' },
   { to: '/mysql',    label: 'MySQL', section: 'mysql' },
   { to: '/redis',    label: 'Redis', section: 'redis' },
+  { to: '/kafka',    label: 'Kafka', section: 'kafka' },
 ]
 
 export function Header() {
