@@ -1,0 +1,152 @@
+[
+  {
+    "id": "K3-01",
+    "title": "acks=0 / 1 / all 三种模式对比：吞吐量与可靠性的取舍",
+    "category": "生产者机制",
+    "categoryId": 3,
+    "level": "L2",
+    "background": "acks 是 Kafka 生产者最重要的配置项，直接决定消息可靠性。面试官用这道题快速判断候选人对 Kafka 可靠性模型的基本认知。",
+    "answerPoints": [
+      "acks=0（Fire and Forget）：生产者发出消息后不等待任何 Broker 响应，直接认为成功。吞吐量最高，但 Broker 未收到消息时生产者无感知，数据可能直接丢失。适用：日志、监控指标等允许少量丢失的高频场景",
+      "acks=1（Leader Ack）：消息写入 Leader Broker 后，Leader 向生产者返回 ack，不等待 Follower 同步。Leader 宕机且消息未复制时数据丢失（Follower 还没拉取到）。吞吐量适中，是旧版 Kafka 的默认值",
+      "acks=all（等同于 acks=-1，ISR Ack）：消息必须被所有 ISR 副本写入后才返回 ack。配合 min.insync.replicas=2 可保证至少两副本持久化。延迟最高（多一个 Follower 同步 RTT），但可靠性最强，是生产环境的推荐选项",
+      "延迟对比：acks=0 最低，几乎无额外延迟；acks=1 增加 1 次网络 RTT（生产者到 Leader 的确认）；acks=all 在 acks=1 基础上增加 Follower 同步时延（通常 1~5ms），可通过调小副本延迟来降低影响",
+      "默认值变化：Kafka 3.0 之前默认 acks=1；Kafka 3.0 起默认 acks=all（幂等生产者启用时），体现了社区对可靠性的更高重视"
+    ],
+    "codeExample": {
+      "code": "// Java 生产者配置示例\nProperties props = new Properties();\nprops.put(\"bootstrap.servers\", \"broker1:9092,broker2:9092\");\n\n// 场景1: 高吞吐 / 允许丢失（日志上报）\nprops.put(\"acks\", \"0\");\n\n// 场景2: 平衡吞吐与可靠性（旧系统兼容）\nprops.put(\"acks\", \"1\");\n\n// 场景3: 强可靠性（订单/支付，推荐生产配置）\nprops.put(\"acks\", \"all\");                          // 等待所有 ISR 确认\nprops.put(\"enable.idempotence\", \"true\");           // 幂等，重试安全\nprops.put(\"retries\", String.valueOf(Integer.MAX_VALUE));\nprops.put(\"delivery.timeout.ms\", \"120000\");        // 最长等待 2 分钟",
+      "language": "java",
+      "explanation": "acks=all + enable.idempotence=true 是 Kafka 3.0+ 的默认组合。幂等生产者确保即使重试也不会产生重复消息，配合 min.insync.replicas=2 可实现强持久性保证。"
+    },
+    "followUp": [
+      "acks=all 时，如果某个 ISR Follower 非常慢，会影响所有消息的延迟吗？（答：会。acks=all 等待最慢的 ISR 成员。可通过设置合理的 replica.lag.time.max.ms 将持续落后的副本踢出 ISR，防止一个慢副本拖慢整体）",
+      "acks=all 和 acks=-1 有什么区别？（答：完全等价，-1 是 all 的别名，Kafka 文档中两者描述相同）"
+    ]
+  },
+  {
+    "id": "K3-02",
+    "title": "幂等生产者原理：PID + Sequence Number 如何去重？",
+    "category": "生产者机制",
+    "categoryId": 3,
+    "level": "L2/L3",
+    "background": "网络重传导致的消息重复是分布式系统的常见问题，Kafka 的幂等生产者用一个优雅的序列号方案解决了这个问题。理解这个机制是进一步理解 exactly-once 的基础。",
+    "answerPoints": [
+      "问题背景：生产者设置 retries > 0 时，网络超时后重试可能导致 Broker 收到同一条消息两次（第一次实际成功，但 ack 丢失，生产者误判为失败并重试），造成重复写入",
+      "PID（Producer ID）：每个生产者实例启动时，Broker 分配一个唯一的 PID（64位整数）。PID 在生产者会话期间不变，重启后会重新申请（这是幂等不能跨会话的原因）",
+      "Sequence Number（序列号）：每个 (PID, TopicPartition) 组合维护一个单调递增的序列号，初始为 0。生产者每发送一个 ProducerBatch，序列号 +1，写入消息 header",
+      "Broker 端去重逻辑：Broker 为每个 (PID, Partition) 维护最近 5 个 Batch 的序列号。收到消息时：若序列号等于「上次序列号 + 1」→ 正常写入；若序列号 <= 上次序列号 → 重复，丢弃并返回 DuplicateSequenceNumber 响应；若序列号跳跃（> 上次 + 1） → 乱序，返回 OutOfOrderSequenceNumber",
+      "幂等的边界限制：①只在单个 Partition 内有效，跨 Partition 的重复不保证；②只在单个生产者会话内有效，生产者重启后 PID 变化，旧消息可能被重复发送；③需要 enable.idempotence=true（Kafka 3.0+ 默认开启）",
+      "与 max.in.flight 的关系：幂等模式下 max.in.flight.requests.per.connection 最大为 5。Broker 记录最近 5 个 Batch 的序列号，超过 5 个并发请求时 Broker 无法保证有效去重"
+    ],
+    "codeExample": {
+      "code": "// 幂等生产者的 ProducerBatch Header（简化）\n// 每条消息携带 PID + Epoch + SequenceNumber\n//\n// 首次发送：PID=12345, Epoch=0, Seq=0  → Broker 接受，写入\n// 网络超时重试：PID=12345, Epoch=0, Seq=0 → Broker 发现 Seq=0 已存在，返回 DuplicateSequence，不重复写入\n// 下一条新消息：PID=12345, Epoch=0, Seq=1 → Broker 接受\n\nProperties props = new Properties();\nprops.put(\"enable.idempotence\", \"true\");   // 开启幂等（Kafka 3.0+ 默认 true）\n// 幂等模式下以下参数自动约束：\n// retries = Integer.MAX_VALUE（自动设置）\n// acks = all（自动设置）\n// max.in.flight.requests.per.connection <= 5",
+      "language": "java",
+      "explanation": "开启幂等后，Kafka 会自动设置 acks=all 和重试，无需手动配置。Broker 用序列号窗口（最近5个Batch）检测重复，网络重传不会产生重复消息。"
+    },
+    "followUp": [
+      "幂等生产者能保证跨多个 Partition 的原子写入吗？（答：不能，幂等只保证单 Partition 内不重复。跨 Partition 的原子写入需要 Kafka 事务）",
+      "如果生产者因为 OOM 重启，新的生产者实例还能保证幂等吗？（答：新实例会申请新的 PID，旧 PID 对应的去重状态不保留。重启后的重试可能导致重复，需要通过 transactional.id 或业务层幂等解决）"
+    ]
+  },
+  {
+    "id": "K3-03",
+    "title": "enable.idempotence=true 能保证 exactly-once 吗？它的边界在哪？",
+    "category": "生产者机制",
+    "categoryId": 3,
+    "level": "L3",
+    "background": "很多候选人混淆「幂等」和「exactly-once」，这两个概念的边界是 Kafka 面试中非常经典的辨析题，能回答清楚说明对 Kafka 可靠性语义有透彻理解。",
+    "answerPoints": [
+      "幂等 ≠ exactly-once：幂等（idempotence）只保证「单个生产者会话内，单个 Partition 上，网络重传不产生重复」——即对 Broker 的写入是精确一次的。但这不是完整的 exactly-once",
+      "幂等覆盖不到的场景：①生产者重启（PID 变化）：重启后旧消息可能被重新发送，新 PID 让 Broker 无法识别为重复；②多 Partition 写入：如果业务逻辑要求「要么写 A 分区要么写 B 分区」，幂等无法保证跨分区原子性；③消费者侧重复：幂等只管生产端写入，消费者 offset 提交失败后重新消费，业务逻辑会被执行多次",
+      "真正的端到端 exactly-once 需要：①生产者侧：幂等（enable.idempotence=true）+ 事务（transactional.id 配置）；②消费者侧：isolation.level=read_committed（只消费已提交事务的消息）；③业务侧：消费 + 处理 + offset 提交三步原子化",
+      "幂等的价值：虽然不是完整的 exactly-once，幂等是构建 exactly-once 的基础组件，同时以极低开销解决了最常见的「网络重试重复」问题，在不需要跨 Partition 原子性的场景下已经足够",
+      "一句话总结：enable.idempotence=true 保证的是「Producer → Broker 的精确一次写入」，而非「端到端精确一次语义」。后者需要结合事务 API 和消费者配置共同实现"
+    ],
+    "followUp": [
+      "如果业务逻辑本身是幂等的（如更新同一行数据），还需要 Kafka exactly-once 吗？（答：不一定。业务幂等是最简单的解决方案，成本最低。Kafka exactly-once 适用于业务逻辑非幂等且对重复敏感的场景，如计数、扣款）",
+      "Kafka Streams 的 exactly-once 和手动配置事务有什么区别？（答：Kafka Streams 的 processing.guarantee=exactly_once_v2 在内部自动管理事务，帮你处理事务 ID 生成、提交时机、隔离级别；手动使用事务 API 则需要开发者自己处理这些细节）"
+    ]
+  },
+  {
+    "id": "K3-04",
+    "title": "batch.size + linger.ms 权衡：如何在吞吐量与延迟之间找平衡？",
+    "category": "生产者机制",
+    "categoryId": 3,
+    "level": "L2/L3",
+    "background": "批量发送是 Kafka 生产者提升吞吐量的核心手段，但不合理的配置会导致延迟飙升。这是性能调优面试中必问的实战题。",
+    "answerPoints": [
+      "RecordAccumulator 机制：生产者不是每条消息都立即发送，而是将消息按 TopicPartition 分组，积累到 ProducerBatch（内存缓冲）中，由 Sender 线程批量发出",
+      "batch.size（默认 16KB）：单个 ProducerBatch 的最大字节数。Batch 积累到 batch.size 时立即发送。增大 batch.size 可以减少网络请求次数、提升吞吐，但每条消息平均等待时间增加（需等 Batch 填满）",
+      "linger.ms（默认 0ms）：Sender 线程在 Batch 未满时等待的最长时间。默认 0 表示 Batch 有消息就立即发（不等待聚合），延迟最低但吞吐量最小；设为 5~10ms 可让更多消息聚合进同一 Batch，大幅提升吞吐量，代价是增加 5~10ms 延迟",
+      "两者配合策略：①低延迟优先（实时交易）：batch.size=16KB, linger.ms=0，消息实时发出，不等批次填满；②高吞吐优先（日志采集）：batch.size=64KB~256KB, linger.ms=10~50ms，聚合更多消息批量发送；③平衡模式：batch.size=32KB, linger.ms=5ms，大多数业务场景适用",
+      "buffer.memory（默认 32MB）：生产者所有 ProducerBatch 的总内存上限。当 Broker 处理慢、Batch 积压超过 buffer.memory 时，send() 调用会阻塞 max.block.ms（默认 60s），超时后抛出 TimeoutException。大流量场景需根据消息速率调大"
+    ],
+    "codeExample": {
+      "code": "// 高吞吐场景配置示例\nprops.put(\"batch.size\", String.valueOf(64 * 1024));    // 64KB\nprops.put(\"linger.ms\", \"10\");                          // 等待最多 10ms 聚合\nprops.put(\"buffer.memory\", String.valueOf(64 * 1024 * 1024)); // 64MB 缓冲\nprops.put(\"compression.type\", \"lz4\");                  // 压缩降低网络带宽\n\n// 低延迟场景配置示例\nprops.put(\"batch.size\", String.valueOf(16 * 1024));    // 16KB（默认）\nprops.put(\"linger.ms\", \"0\");                           // 立即发送（默认）\nprops.put(\"compression.type\", \"none\");                 // 不压缩，减少 CPU 开销",
+      "language": "java",
+      "explanation": "linger.ms 是调优吞吐量最有效的参数之一。即使设置 5ms，也能让消息聚合率提升数倍，同时对 P99 延迟影响有限（只增加最多 5ms）。"
+    },
+    "followUp": [
+      "batch.size 设置得越大越好吗？（答：不是。过大的 Batch 会增加单次请求的内存开销和序列化时间，同时在消息量不足时白白等待 linger.ms；还可能超过 Broker 的 message.max.bytes 限制。一般不超过 1MB）",
+      "如果生产者的消息发送速率很低（如每秒几条），linger.ms 设多大合适？（答：低速场景下 linger.ms 主要决定延迟，设置越大延迟越高。低速且延迟敏感的场景建议 linger.ms=0 或 1，不要为了「批量」而牺牲延迟）"
+    ]
+  },
+  {
+    "id": "K3-05",
+    "title": "分区器策略：轮询 / Key Hash / 粘性分区（Sticky）各自行为",
+    "category": "生产者机制",
+    "categoryId": 3,
+    "level": "L2",
+    "background": "分区策略直接影响消息的顺序性、负载均衡和批量效率。理解三种策略的适用场景是 Kafka 应用开发的基础知识。",
+    "answerPoints": [
+      "Key Hash 分区（有 Key 时的默认策略）：对消息 Key 做 murmur2 哈希后取模分区数。相同 Key 的消息始终路由到同一 Partition，保证单 Key 内的消息有序。适用：需要按用户 ID、订单 ID 等保证顺序的场景。缺点：Key 分布不均时可能产生热点分区",
+      "轮询分区（无 Key 时的旧版默认策略，Kafka 2.4 之前）：无 Key 消息按 Partition 索引轮询，负载均衡好，但每条消息可能被分到不同 Partition，Batch 难以积累，吞吐量低",
+      "粘性分区（Sticky Partitioner，Kafka 2.4+ 无 Key 时的默认策略）：随机选一个 Partition，将消息持续发往该 Partition 直到 Batch 满（或达到 linger.ms）才切换到下一个 Partition。既保证了负载均衡（统计上均匀），又让 Batch 积累效率比轮询高数倍，延迟更低",
+      "自定义 Partitioner：实现 org.apache.kafka.clients.producer.Partitioner 接口，重写 partition() 方法。适用：按业务规则路由（如按地区、按优先级分区），或者针对热点 Key 做打散处理",
+      "热点分区的处理：当某个 Key（如大客户 ID）流量远超其他 Key，导致对应 Partition 成为热点时，可以为热点 Key 在业务层加随机后缀（key + suffix），将其打散到多个 Partition，消费时再按原始 Key 聚合"
+    ],
+    "followUp": [
+      "同一个 Key 的消息顺序能保证吗？如果对应 Partition 的 Leader 切换了，顺序还保证吗？（答：单 Partition 内顺序由 offset 保证，Leader 切换不影响已写入的消息顺序；但切换期间生产者重试可能写入重复消息，需配合幂等生产者）",
+      "如果 Topic 扩分区了，原来 Key 的路由会变吗？（答：会！扩分区后取模分母（分区数）变了，相同 Key 可能被路由到不同 Partition，导致顺序被打乱。这是扩分区最大的业务风险，扩分区前必须评估影响）"
+    ]
+  },
+  {
+    "id": "K3-06",
+    "title": "生产者重试会产生消息重复吗？retries + max.in.flight 的坑",
+    "category": "生产者机制",
+    "categoryId": 3,
+    "level": "L2/L3",
+    "background": "重试是提高可靠性的手段，但不当配置会引发重复消息甚至消息乱序，这是 Kafka 生产环境中最容易踩的坑之一。",
+    "answerPoints": [
+      "重复消息的来源：生产者发送消息后，Broker 写入成功但 ack 在网络中丢失，生产者超时后重试，Broker 收到重复消息并再次写入，导致同一条消息在 Partition 中存在两份",
+      "max.in.flight.requests.per.connection（默认 5）：生产者允许同时有多少个未确认的请求飞行中。设置 > 1 时，若第 1 个请求失败重试而第 2 个请求已成功，重试后消息顺序变为 [2, 1]，破坏有序性",
+      "经典踩坑组合：retries > 0 + max.in.flight > 1 + enable.idempotence=false → 重试导致重复，且消息可能乱序",
+      "解决方案：enable.idempotence=true 同时解决两个问题——①PID + Sequence Number 让 Broker 去重；②幂等模式下 Broker 维护序列号窗口，检测到乱序会拒绝，保证 Partition 内严格有序（max.in.flight 自动被限制 ≤ 5）",
+      "retries 设置建议：开启幂等时，retries 可以设为 Integer.MAX_VALUE，配合 delivery.timeout.ms（默认 120s）控制最大重试窗口。不开启幂等时，retries 建议 3~10，避免无限重试造成消息堆积"
+    ],
+    "followUp": [
+      "enable.idempotence=true 后，max.in.flight 能设为大于 5 吗？（答：不能，Kafka 强制限制为 5。Broker 只缓存每个 (PID, Partition) 的最近 5 个 Batch 序列号，超过 5 个并发请求时无法保证去重）",
+      "如果不想用幂等，如何在业务层防止重复？（答：在消息中加入全局唯一 ID（UUID），消费者收到后查幂等表（如 Redis SET NX 或数据库唯一键），处理过的消息 ID 直接跳过）"
+    ]
+  },
+  {
+    "id": "K3-07",
+    "title": "消息压缩（snappy/lz4/zstd）在哪个环节压缩、哪个环节解压？",
+    "category": "生产者机制",
+    "categoryId": 3,
+    "level": "L2",
+    "background": "压缩是 Kafka 降低网络和存储成本的重要手段，但很多人不清楚压缩和解压的具体位置，会在排查性能问题时走弯路。",
+    "answerPoints": [
+      "压缩位置：生产者侧。生产者将 RecordBatch 积累后，在发送前整体压缩整个 Batch（注意是 Batch 级别，不是单条消息），然后将压缩后的字节流写入 ProduceRequest 发给 Broker",
+      "Broker 的处理：Broker 收到压缩的 Batch 后，默认不解压，直接将压缩数据写入 .log 文件存储（compression.type=producer 时）。这意味着磁盘上存储的是压缩数据，节省磁盘空间",
+      "特殊情况 Broker 需解压：①Broker 配置了不同于生产者的 compression.type（如 Broker 设置 gzip 但生产者用 snappy），此时 Broker 需解压后重新压缩；②消息格式转换（版本不一致时）；③Broker 需要验证消息 CRC 时（某些配置下）",
+      "解压位置：消费者侧。消费者收到压缩的 RecordBatch 后，在客户端解压缩，然后遍历解析每条消息",
+      "各压缩算法对比：①snappy：压缩速度快，CPU 消耗低，压缩率中等（~50%），适合大多数场景；②lz4：速度最快（压缩/解压均快），CPU 最低，推荐高吞吐低延迟场景；③gzip：压缩率最高（~60~70%），但 CPU 开销大，适合带宽受限场景；④zstd（Kafka 2.1+）：在速度和压缩率之间取得最佳平衡，推荐新集群使用",
+      "Batch 级压缩的优势：整批消息一起压缩比单条消息压缩率更高（字典共享），尤其是消息格式相似时（如 JSON / Protobuf）压缩率可达 70%+"
+    ],
+    "followUp": [
+      "如果 Broker 配置 compression.type=uncompressed，而生产者发来的是压缩消息，Broker 会解压吗？（答：是的，Broker 会解压存储，消费者收到的是未压缩数据，增加了 Broker 的 CPU 开销）",
+      "压缩会影响 Broker 的 HW 推进速度吗？（答：理论上不影响——Follower 复制时传输的是压缩 Batch，网络传输量更小，Follower 同步反而更快，HW 推进可能更快）"
+    ]
+  }
+]

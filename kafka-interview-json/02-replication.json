@@ -1,0 +1,167 @@
+[
+  {
+    "id": "K2-01",
+    "title": "ISR、HW、LEO 的定义及三者关系——为何消费者只能读到 HW？",
+    "category": "复制与高可用",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "background": "这是 Kafka 复制机制中最高频的考题，几乎每家大厂都会问。ISR/HW/LEO 三个概念环环相扣，搞清楚它们的关系才能真正理解 Kafka 如何在可用性和一致性之间权衡。",
+    "answerPoints": [
+      "LEO（Log End Offset）：每个副本（Leader 和 Follower）自己日志的下一条写入位置，即当前副本最新消息的 offset + 1。每次 append 消息后 LEO 单调递增",
+      "HW（High Watermark，高水位）：所有 ISR 副本都已经写入的最大 offset，即 min(所有 ISR 成员的 LEO)。HW 以下的消息对消费者可见，HW 是「已安全复制」的边界",
+      "ISR（In-Sync Replicas）：与 Leader 保持同步的副本集合。Follower 若在 replica.lag.time.max.ms（默认 10s）内成功向 Leader 发起 FetchRequest，就留在 ISR；否则被踢出 ISR",
+      "消费者只能读到 HW 的原因：防止消费到「幽灵消息」——假设消费者读到了 Leader LEO 处的消息，但 Follower 还没拉取到，此时 Leader 宕机、Follower 当选新 Leader，该消息在新 Leader 上不存在，消费者就读到了一条「不存在」的消息，造成不一致",
+      "HW 推进过程：①Follower 拉取消息后更新自己的 LEO；②Follower 在下一次 FetchRequest 中将自己的 LEO 上报给 Leader；③Leader 收集所有 ISR 的 LEO，取最小值更新 HW；④Leader 在 FetchResponse 中把新 HW 告知 Follower，Follower 更新本地 HW",
+      "HW 更新是异步的：Leader 更新 HW 后，Follower 需在下一次 Fetch 时才得知新 HW，存在 1~2 个 RTT 的延迟。这意味着即使 Leader 的 HW 已推进，Follower 的 HW 短时间内可能仍落后于 Leader"
+    ],
+    "codeExample": {
+      "code": "// 示意图：3副本场景下的 LEO 与 HW\n//\n// Partition 0, RF=3, ISR=[Leader, F1, F2]\n//\n//         offset: 0  1  2  3  4  5\n// Leader:         [A][B][C][D][E]      LEO=5\n// Follower1:      [A][B][C][D]         LEO=4\n// Follower2:      [A][B][C]            LEO=3\n//\n// HW = min(5, 4, 3) = 3\n// 消费者最多消费到 offset=2（HW-1），消息 D、E 对消费者不可见\n//\n// 当 F2 追上后（LEO=5），HW 推进到 5，D、E 才对消费者可见",
+      "language": "bash",
+      "explanation": "HW 是最慢 ISR 成员的 LEO。只有所有 ISR 都写入后，消息才对消费者可见，这保证了即使 Leader 切换，消费者也不会读到「未复制」的消息。"
+    },
+    "followUp": [
+      "如果 ISR 中只剩下 Leader 自己，HW 等于什么？（答：HW = Leader 自己的 LEO，此时消息写入即可见，但可靠性极低——Leader 宕机数据即丢）",
+      "Follower 落后太多被踢出 ISR 后，如何重新加入？（答：Follower 追上 Leader 的 LEO 后，Leader 将其重新加入 ISR；追赶期间 Follower 处于 OSR（Out-of-Sync Replicas）状态）"
+    ]
+  },
+  {
+    "id": "K2-02",
+    "title": "min.insync.replicas 与 acks=all 如何配合保证不丢消息？",
+    "category": "复制与高可用",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "background": "「如何保证消息不丢」是 Kafka 面试中出现频率极高的实战配置题。面试官希望看到候选人能给出一套完整的参数组合，而不只是说「设置 acks=all 就行了」。",
+    "answerPoints": [
+      "acks=all（等同于 acks=-1）：生产者发送的消息必须被所有 ISR 成员写入并确认后，Broker 才向生产者返回成功响应。这保证了消息至少存在于所有当前 ISR 副本中",
+      "acks=all 的隐患：如果 ISR 只剩 Leader 一个副本，acks=all 等同于 acks=1，Leader 宕机消息仍然丢失。单靠 acks=all 不够",
+      "min.insync.replicas（默认值 1）：规定 acks=all 时，ISR 中至少需要有多少个副本才接受写入。若当前 ISR 数量小于该值，Broker 拒绝写入并向生产者抛出 NotEnoughReplicasException",
+      "生产推荐组合：replication.factor=3 + acks=all + min.insync.replicas=2。含义：3 个副本，写入时至少 2 个 ISR 确认，允许 1 个 Broker 宕机而不影响写入可用性，同时保证数据至少有 2 份",
+      "min.insync.replicas=2 的容错边界：允许最多 1 个 Broker 故障（ISR 还剩 2 个，满足 min.insync.replicas）；若同时有 2 个 Broker 故障（ISR 仅剩 1 个），写入被拒绝（可用性换取一致性）",
+      "消费者侧同样需要保证：commit offset 必须在业务处理成功之后执行。否则即使生产者侧保证了持久化，消费端 offset 提前提交后崩溃，消息仍会「丢失」（实际是漏消费）"
+    ],
+    "codeExample": {
+      "code": "# Broker 端（server.properties）\ndefault.replication.factor=3\nmin.insync.replicas=2\nunclean.leader.election.enable=false\n\n# 生产者端（Java ProducerConfig）\nprops.put(\"acks\", \"all\");\nprops.put(\"retries\", Integer.MAX_VALUE);\nprops.put(\"enable.idempotence\", \"true\");       // 开启幂等，重试安全\nprops.put(\"max.in.flight.requests.per.connection\", \"5\"); // 幂等模式最大5\n\n# 消费者端\nprops.put(\"enable.auto.commit\", \"false\");      // 关闭自动提交\n// 业务处理成功后手动提交\nconsumer.commitSync();",
+      "language": "properties",
+      "explanation": "三侧协同：Broker 配置保证数据多副本落盘；Producer 配置保证写入成功才返回；Consumer 配置保证处理成功后才提交 offset。三者缺一都可能导致消息丢失。"
+    },
+    "followUp": [
+      "min.insync.replicas 可以大于 replication.factor 吗？（答：不能，Kafka 会报配置错误。即便允许，ISR 数量最大等于 replication.factor，永远无法满足条件，所有写入都会失败）",
+      "acks=all 会显著增加延迟吗？（答：会增加 1~2 个 Follower 同步 RTT（通常几毫秒）。可通过减少 replica.lag.time.max.ms 让 Follower 更频繁同步来降低影响，但不可避免有一定延迟代价）"
+    ]
+  },
+  {
+    "id": "K2-03",
+    "title": "什么情况会导致 ISR 收缩？replica.lag.time.max.ms 的作用",
+    "category": "复制与高可用",
+    "categoryId": 2,
+    "level": "L3",
+    "background": "ISR 频繁收缩是生产环境中 Kafka 集群不稳定的重要信号。面试官问这个问题是想考察候选人能否结合实际运维经验分析根因。",
+    "answerPoints": [
+      "ISR 收缩触发条件：Follower 在 replica.lag.time.max.ms（默认 10000ms）内没有向 Leader 发送 FetchRequest，或者虽然发了 Fetch 但始终没追上 Leader 的 LEO，Controller 会将该 Follower 从 ISR 中移除",
+      "导致 ISR 收缩的常见原因：①Follower 所在 Broker 发生 Full GC 停顿（STW 时间超过 lag 阈值）；②磁盘 IO 瓶颈导致 Follower 写入缓慢；③网络带宽打满或网络抖动；④Follower Broker 负载过高（CPU 或内存压力）；⑤Producer 瞬间大量写入（流量突增），Follower 追不上 Leader",
+      "ISR 收缩的危害：①HW 推进速度降低（需等待剩余 ISR 成员）；②如果收缩后 ISR 数量低于 min.insync.replicas，新消息写入失败；③若 Leader 在 ISR 收缩期间宕机，可选 Leader 变少，极端情况无法选举",
+      "replica.lag.time.max.ms 的调优：该值过小（如 5s）在 GC 频繁的集群中会频繁触发 ISR 收缩；过大（如 30s）会导致落后副本长期留在 ISR，HW 推进慢。推荐根据集群 GC pause 情况调整，通常设为 2 倍 GC 停顿时间上限",
+      "监控手段：关注 JMX 指标 kafka.server:type=ReplicaManager,name=UnderReplicatedPartitions（值应为 0）和 IsrShrinksPerSec（应趋近于 0）。ISR 收缩时 Kafka 日志中会打印 Partition xxx ISR 变更记录"
+    ],
+    "followUp": [
+      "ISR 收缩后，Follower 追上了怎么重新加入 ISR？（答：Follower 持续 Fetch 直到自己的 LEO >= Leader 的 HW，Leader 将其重新加回 ISR，同时更新 ZK/KRaft 中的 ISR 列表）",
+      "频繁 ISR 收缩扩展对性能有什么影响？（答：每次 ISR 变更都要更新元数据（ZK 写或 KRaft Raft log），高频变更会给 Controller 和元数据层带来压力，可能引发元数据风暴）"
+    ]
+  },
+  {
+    "id": "K2-04",
+    "title": "Unclean Leader Election（不洁选举）的风险与取舍",
+    "category": "复制与高可用",
+    "categoryId": 2,
+    "level": "L3",
+    "background": "不洁选举是 Kafka 在可用性与一致性之间最典型的「艰难选择」，CAP 理论的实际体现。面试官借此考察候选人对分布式系统核心权衡的理解深度。",
+    "answerPoints": [
+      "不洁选举的场景：当一个 Partition 的所有 ISR 副本全部下线后，如果 unclean.leader.election.enable=true（旧版默认 true，新版默认 false），Kafka 允许从非 ISR 的副本（OSR，Out-of-Sync Replica）中选举新 Leader",
+      "不洁选举的风险：OSR 副本的 LEO 落后于原 Leader 的 HW，意味着原 Leader 上 HW 以下的部分消息在新 Leader 中不存在。消费者之前消费过的消息 offset，在新 Leader 看来可能对应完全不同的内容，造成数据错乱或丢失",
+      "不洁选举的收益：避免 Partition 长时间不可用。金融系统可能宁可数据丢失也要保持服务可用（如日志类场景），此时可开启",
+      "生产推荐：对强一致性要求的业务（金融、订单、支付）应设置 unclean.leader.election.enable=false，宁可分区短暂不可用，也不允许数据丢失。对高可用要求大于数据完整性的场景（如日志采集）可考虑开启",
+      "与 min.insync.replicas 的联动：即使 unclean.leader.election.enable=false，也要配合 min.insync.replicas=2，防止 ISR 中只剩一个副本时 acks=all 等同于 acks=1 的问题"
+    ],
+    "followUp": [
+      "不洁选举发生后，如何恢复数据一致性？（答：很难完全恢复——已消费的数据可能与新 Leader 的数据不一致。最好的方法是通过监控提前预防，比如在 ISR 快速收缩时触发告警）",
+      "Kafka 有没有办法在不洁选举后检测数据丢失？（答：可以通过 Leader Epoch 机制检测——新 Leader 的 epoch 会递增，消费者可以在重连时检查 epoch 变化，发现潜在的数据不一致）"
+    ]
+  },
+  {
+    "id": "K2-05",
+    "title": "Follower 日志截断（Log Truncation）是什么？何时发生？",
+    "category": "复制与高可用",
+    "categoryId": 2,
+    "level": "L3",
+    "background": "日志截断是 Kafka 复制协议中容易被忽视但非常重要的机制。不理解截断就无法真正理解 Leader 切换后集群如何保持一致性。",
+    "answerPoints": [
+      "为什么需要日志截断：Leader 切换后，新 Leader 的日志可能短于旧 Leader（旧 Leader 接受了消息但未广播到所有副本就宕机）。新 Follower（即旧 Leader 恢复后）如果直接追加，会导致日志出现「分叉」，破坏日志的线性一致性",
+      "截断触发时机：当 Broker 重启并以 Follower 身份重新加入时，它会向新 Leader 发送 OffsetForLeaderEpochRequest，询问自己上一个 Leader Epoch 对应的 LEO 是多少。如果自己本地 LEO 超过新 Leader 给出的值，说明有未提交（超出 HW）的消息需要截断",
+      "截断过程：Follower 删除本地 log 中超出新 Leader 确认的 HW 之后的消息（即那些从未进入 HW 的「孤立消息」），然后从截断点开始重新向 Leader 拉取，保证与新 Leader 的日志完全一致",
+      "Leader Epoch 的作用：旧版（Kafka 0.11 之前）Follower 截断是基于 HW 的，存在一个已知的 Bug——在特定时序下 HW 可能不准确，导致截断位置错误，引发数据丢失或重复。Kafka 0.11 引入 Leader Epoch 机制解决了这个问题：每次 Leader 切换 epoch 递增，Follower 通过 epoch 精确定位截断点",
+      "截断不会影响已提交消息：截断只删除 HW 以上（未被所有 ISR 确认）的消息，HW 以下（消费者可见）的消息不会被截断，所以对消费者完全透明"
+    ],
+    "followUp": [
+      "如果截断发生时消费者正在读取被截断的消息，会发生什么？（答：消费者只能读到 HW 以下的消息，截断的是 HW 以上的部分，所以消费者不会受影响）",
+      "Leader Epoch 存储在哪里？（答：每个 Partition 目录下有 leader-epoch-checkpoint 文件，记录 epoch -> 起始 offset 的映射，Broker 重启时加载）"
+    ]
+  },
+  {
+    "id": "K2-06",
+    "title": "Leader Epoch 如何解决旧 Leader 的「幽灵消息」问题？",
+    "category": "复制与高可用",
+    "categoryId": 2,
+    "level": "L3",
+    "background": "Leader Epoch 是 Kafka 0.11 引入的关键机制，专门修复了基于 HW 截断时存在的数据丢失和重复消费 Bug。这道题能区分「用过 Kafka」和「真正理解 Kafka」的候选人。",
+    "answerPoints": [
+      "旧版（基于 HW 截断）的 Bug 场景：①Producer 向 Leader A 写入消息 m（offset=0），A 的 LEO=1，HW 仍为 0（Follower B 还未拉取）；②B 拉取到 m，B 的 LEO=1；③B 向 A 汇报 LEO=1 前，B 崩溃重启；④B 重启后读取本地 HW=0，将 m 截断删除；⑤此时 A 也崩溃，B 当选新 Leader，B 上 m 已被截断——消息永久丢失",
+      "Leader Epoch 的核心思想：每次 Leader 切换，epoch 单调递增。Follower 截断时不再依赖 HW，而是询问当前 Leader「我上一个 epoch 的 LEO 应该是多少」，用这个精确值来截断，避免过度截断",
+      "OffsetForLeaderEpochRequest：Follower 重启后发送此请求，携带自己记录的最后一个 Leader Epoch 和 LEO。新 Leader 返回该 epoch 下自己确认的 end offset，Follower 将本地 log 截断到该 offset",
+      "幽灵消息的解决：有了 Leader Epoch，旧 Leader 恢复后以 Follower 身份重新加入时，会通过 epoch 精确截断自己多余的消息（这些消息从未进入 HW，消费者没看到），而不是凭借 HW 这个「软边界」",
+      "epoch 的存储：每个 Partition 目录下的 leader-epoch-checkpoint 文件记录 (epoch, startOffset) 映射，每次 Leader 切换时追加新记录"
+    ],
+    "followUp": [
+      "Leader Epoch 能防止所有数据不一致场景吗？（答：能解决基于 HW 截断引发的问题，但无法防止 unclean.leader.election 带来的数据丢失——那是从根本上绕过了 ISR 一致性保证）",
+      "消费者侧也有 epoch 概念吗？（答：有——消费者提交 offset 时会携带 leader_epoch，Broker 可以验证消费者读取时的 Leader 是否和当前一致，防止消费者消费到过期 Leader 的数据）"
+    ]
+  },
+  {
+    "id": "K2-07",
+    "title": "复制因子=3 的集群，能否在 min.insync.replicas=2 下容忍 2 个 Broker 挂掉？",
+    "category": "复制与高可用",
+    "categoryId": 2,
+    "level": "L2/L3",
+    "background": "这是一道典型的「看似简单实则有陷阱」的配置理解题，考察候选人能否正确区分「读/写可用性」和「数据不丢失」两个维度。",
+    "answerPoints": [
+      "结论：数据不丢，但写入不可用。RF=3、min.insync.replicas=2 时，允许 1 个 Broker 故障（ISR 还剩 2 个，满足 min.insync.replicas=2，写入正常）；若 2 个 Broker 同时故障，ISR 仅剩 1 个，不满足 min.insync.replicas=2，Broker 拒绝新写入（抛出 NotEnoughReplicasException），但已有消息不丢失",
+      "能否容忍 2 个宕机取决于 unclean.leader.election：若 unclean.leader.election.enable=false（推荐），2 个宕机后唯一存活副本无法成为 Leader（它不在 ISR），分区不可用；若 unclean.leader.election.enable=true，存活副本强制当选 Leader，服务可用但可能丢数据",
+      "读可用性：消费者读取走 Leader，即使 2 个 Broker 宕机只剩 1 个，消费者仍然可以读（只要 Leader 还活着）。写不可用不等于读不可用",
+      "容错矩阵（RF=3）：①0 个宕机：读写均可用；②1 个宕机：读写均可用（ISR=2，满足 min.insync.replicas=2）；③2 个宕机：读可用（Leader 还在），写不可用（ISR=1 < min.insync.replicas）；④3 个宕机：读写均不可用",
+      "设计启示：min.insync.replicas 是「写入门槛」而非「数据份数」。要同时保证写可用和数据安全，必须 replication.factor > min.insync.replicas，推荐 RF=3, min.insync.replicas=2"
+    ],
+    "followUp": [
+      "如果想容忍任意 2 个 Broker 宕机仍然可写，需要什么配置？（答：RF ≥ 5，min.insync.replicas=3。容忍 f 个宕机可写，需要 RF = 2f+1，min.insync.replicas = f+1，代价是存储和网络开销翻倍）",
+      "min.insync.replicas 设置在 Topic 级别还是 Broker 级别更好？（答：两者都支持。Topic 级别优先级更高，推荐对关键 Topic 单独设置，避免全局策略过于宽松）"
+    ]
+  },
+  {
+    "id": "K2-08",
+    "title": "描述一个端到端消息丢失的完整场景，并给出预防方案",
+    "category": "复制与高可用",
+    "categoryId": 2,
+    "level": "L3",
+    "background": "这是 Kafka 面试中难度最高的综合题，需要候选人把生产者、Broker、消费者三侧的知识点串联起来，给出一个完整的故障分析和防御方案。大厂 P7+ 面试必考。",
+    "answerPoints": [
+      "场景一（生产者侧丢失）：Producer 使用 acks=1，消息写入 Leader 后 Leader 立即 ack。在 Follower 还未拉取时 Leader 宕机，Follower 被选为新 Leader，该消息永久丢失。预防：acks=all + min.insync.replicas=2",
+      "场景二（Broker 侧丢失）：acks=all 但 min.insync.replicas=1（默认），ISR 中只剩 Leader，acks=all 等同于 acks=1，Leader 宕机消息丢失。预防：min.insync.replicas=2，保证至少 2 副本写入",
+      "场景三（不洁选举丢失）：unclean.leader.election.enable=true，所有 ISR 宕机后 OSR 副本被选为 Leader，OSR 的 LEO 落后于旧 Leader HW，HW 之间的消息丢失。预防：unclean.leader.election.enable=false",
+      "场景四（消费者侧丢失）：消费者使用 enable.auto.commit=true，poll 后消息在批次中尚未处理完时 auto commit 触发，offset 提交成功后消费者崩溃，未处理的消息永久丢失（offset 不会回退）。预防：关闭自动提交，业务处理成功后手动 commitSync()",
+      "场景五（重试引发乱序后丢失）：enable.idempotence=false，max.in.flight.requests.per.connection > 1，第一个批次失败重试时第二个批次已成功，重试后消息顺序颠倒；若业务依赖顺序则逻辑错误相当于「丢失」了正确消息。预防：enable.idempotence=true（自动将 max.in.flight 限制为 5 且保证有序）",
+      "完整防护清单：生产者（acks=all + retries=MAX + enable.idempotence=true）+ Broker（min.insync.replicas=2 + unclean.leader.election=false + replication.factor=3）+ 消费者（手动提交 offset + 业务幂等处理）"
+    ],
+    "followUp": [
+      "即使配置了所有防护，消息还有可能丢失吗？（答：极端情况仍有可能——如整个机房断电导致 3 个 Broker 同时宕机且未 fsync，PageCache 数据丢失。可通过 log.flush.interval.messages 强制 fsync，但会严重影响性能，一般不推荐）",
+      "消息重复和消息丢失，哪个更难处理？（答：通常重复比丢失更容易处理——可以通过业务幂等性（如数据库唯一键）去重；丢失则很难察觉和恢复。所以生产环境宁可 at-least-once 也不要 at-most-once）"
+    ]
+  }
+]

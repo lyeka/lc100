@@ -1,0 +1,132 @@
+[
+  {
+    "id": "K8-01",
+    "title": "监控 Kafka 集群的核心指标：UnderReplicatedPartitions / ISR 收缩 / 消费者 Lag",
+    "category": "运维与监控",
+    "categoryId": 8,
+    "level": "L2",
+    "background": "完善的监控体系是 Kafka 生产稳定运行的保障。面试官通过这道题考察候选人是否有生产环境的运维经验，能否说出最关键的监控指标及其告警阈值。",
+    "answerPoints": [
+      "UnderReplicatedPartitions（核心告警指标）：JMX 路径 kafka.server:type=ReplicaManager,name=UnderReplicatedPartitions，值 > 0 说明有 Partition 的副本未完全同步（ISR 缺失副本）。正常值应为 0，任何非零值都应立即告警。常见原因：Broker 宕机、网络抖动、磁盘慢",
+      "OfflinePartitionsCount：JMX kafka.controller:type=KafkaController,name=OfflinePartitionsCount，值 > 0 说明有 Partition 没有 Leader（完全不可用）。这是比 UnderReplicated 更严重的告警，需要立即处理",
+      "ActiveControllerCount：JMX kafka.controller:type=KafkaController,name=ActiveControllerCount，正常值应为 1（全集群只有一个 Active Controller）。为 0 说明集群无 Controller，写操作将失败；大于 1 说明出现脑裂（极端异常）",
+      "消费者 Lag 监控：通过 kafka-consumer-groups.sh --describe 或 JMX kafka.consumer:type=consumer-fetch-manager-metrics,name=records-lag-max 获取。建议为每个关键 Consumer Group 设置 Lag 告警阈值（如超过 10 万条告警），以及 Lag 增速告警（Lag 持续增大说明消费能力不足）",
+      "Broker 健康指标：①BytesInPerSec / BytesOutPerSec：网络流量，接近网卡上限时扩容；②RequestHandlerAvgIdlePercent：处理线程空闲率，持续低于 20% 需扩容；③LogFlushRateAndTimeMs：磁盘刷写延迟，突增说明磁盘 IO 出现问题；④FetchRequestsPerSec / ProduceRequestsPerSec：请求 QPS，用于容量规划",
+      "推荐监控栈：Kafka Exporter（暴露 Prometheus 格式指标）+ Prometheus + Grafana（可视化）。Confluent 提供了开箱即用的 Grafana Dashboard 模板"
+    ],
+    "followUp": [
+      "UnderReplicatedPartitions > 0 时，如何快速定位是哪些 Partition 出了问题？（答：使用 kafka-topics.sh --describe --under-replicated-partitions 列出所有 under-replicated 的 Partition，找到对应的 Broker，再检查该 Broker 的日志和系统指标）",
+      "消费者 Lag 为 0 但业务数据有延迟，可能是什么原因？（答：①消费者处理完消息但写下游（如数据库）慢；②消费者在 Rebalance；③消费者跳过了某些消息（业务异常直接提交了 offset）；④时间同步问题导致时间戳不准）"
+    ]
+  },
+  {
+    "id": "K8-02",
+    "title": "消息堆积（Lag 暴增）的排查思路与应急处理",
+    "category": "运维与监控",
+    "categoryId": 8,
+    "level": "L2/L3",
+    "background": "消息堆积是 Kafka 生产环境中最常见的告警场景，需要在最短时间内判断根因并给出处理方案。面试官通过这道题考察候选人的故障处理经验和系统性思维。",
+    "answerPoints": [
+      "第一步：区分「生产侧激增」还是「消费侧变慢」。查看 Producer 写入速率（BytesInPerSec）是否突增（如流量高峰、上游重发）；再查看 Consumer 的 commitRate 是否下降。两者分别对应不同的处理方向",
+      "消费侧变慢的排查：①消费者实例是否存活（kafka-consumer-groups.sh --describe 查看成员列表）；②消费者是否频繁 Rebalance（查看消费者日志中的 Rebalance 记录）；③消费者所在机器 CPU / 内存 / 磁盘是否打满；④下游依赖（数据库、HTTP 服务）是否响应变慢（单条消息处理耗时增加）",
+      "应急处理措施（按优先级）：①增加消费者实例数（水平扩展），快速提升消费并发度（不超过 Partition 数）；②临时增大 max.poll.records 和减少业务处理复杂度（如关闭非核心逻辑）；③如果下游是瓶颈，引入本地批量缓存（攒批写入），减少下游请求次数；④如果 Lag 过大且历史消息可以丢弃（日志类），重置 offset 到最新位置",
+      "生产侧激增的处理：①开启/增强消息压缩（减少网络和存储压力）；②联系上游限流（如调低生产者的 max.block.ms，让生产者感受背压）；③临时增加 Partition 数（扩分区后消费者同步扩容）",
+      "长期优化：①设置合理的 Lag 告警和增速告警，提前预警；②定期压测消费能力上限，提前规划扩容方案；③考虑将消费者的下游 IO 操作改为批量异步模式，提升吞吐弹性"
+    ],
+    "followUp": [
+      "如何确定消费者的实际处理能力上限？（答：使用 kafka-consumer-perf-test.sh 压测消费吞吐量上限；或在生产环境中逐步增加 max.poll.records 和消费者实例数，观察 Lag 是否收敛，找到临界点）",
+      "重置 offset 到最新跳过积压后，需要做什么善后工作？（答：①确认跳过的消息是否需要补录（如果业务关键，需要从数据源重放）；②检查跳过的消息中是否有导致 Lag 的「毒消息」（超大消息或解析异常的消息）；③调整监控告警阈值，关注跳过后的数据完整性）"
+    ]
+  },
+  {
+    "id": "K8-03",
+    "title": "Topic 扩分区的操作步骤与注意事项（扩后 Key 路由会变！）",
+    "category": "运维与监控",
+    "categoryId": 8,
+    "level": "L2/L3",
+    "background": "扩分区是 Kafka 集群常见的扩容操作，但潜藏的 Key 路由变更风险往往被忽视，是生产事故的高发点。面试官通过这道题考察候选人的运维规范意识。",
+    "answerPoints": [
+      "扩分区的命令操作：使用 kafka-topics.sh --alter --partitions N 可以增加 Partition 数量。Kafka 只支持增加，不支持减少分区数（减少会导致数据不可访问）",
+      "Key 路由变更风险：Kafka 默认按 murmur2(key) % partition_count 计算目标 Partition。扩分区后 partition_count 变大，相同 Key 的消息可能路由到不同的 Partition，导致：①顺序消费被破坏（同一 Key 的消息分散在新旧 Partition）；②按 Key 分组的状态（如 Kafka Streams KTable）可能读到不完整数据",
+      "扩分区前的评估：①确认 Topic 的 Key 路由策略——如果是无 Key 消息（轮询/粘性）则无影响；②如果有 Key 且业务依赖 Key 顺序，必须评估扩分区后的兼容性，必要时通知下游消费者做相应调整；③确认当前 ISR 状态健康（UnderReplicatedPartitions=0），避免在集群不健康时操作",
+      "扩分区后的操作：①更新消费者配置以处理新增的 Partition（通常消费者自动 Rebalance 即可）；②如果使用了自定义 Partitioner，确认新分区数量下路由逻辑正确；③监控扩分区后的 Lag 分布是否均匀（新 Partition 初始 Lag 为 0）",
+      "安全操作窗口：选择在低峰期操作，扩分区本身是轻量操作（不迁移数据），但会触发消费者 Rebalance，导致短暂消费停顿。选择 Cooperative Rebalance 可以最小化影响"
+    ],
+    "codeExample": {
+      "code": "# 查看当前分区数\nkafka-topics.sh --bootstrap-server broker:9092 --describe --topic my-topic\n\n# 扩分区（从 6 扩到 12）\nkafka-topics.sh --bootstrap-server broker:9092 \\\n  --alter --topic my-topic \\\n  --partitions 12\n\n# 验证扩分区结果\nkafka-topics.sh --bootstrap-server broker:9092 --describe --topic my-topic\n\n# 检查 Consumer Group 的 Rebalance 状态（扩分区后应重新平衡）\nkafka-consumer-groups.sh --bootstrap-server broker:9092 \\\n  --describe --group my-consumer-group",
+      "language": "bash",
+      "explanation": "扩分区命令简单，但必须在操作前评估 Key 路由影响。扩分区后，消费者会自动触发 Rebalance 接管新增 Partition，监控 Lag 确认新 Partition 的消费者正常工作。"
+    },
+    "followUp": [
+      "如果误删了一个 Partition 会怎样？（答：Kafka 不支持删除单个 Partition，只能删除整个 Topic。如果通过手动删除文件的方式删除了 Partition 数据，该 Partition 的消息永久丢失，且可能导致 Broker 启动异常）",
+      "扩分区后，已有消息会重新分配到新 Partition 吗？（答：不会。已有消息保留在原 Partition，新 Partition 只接收扩分区后的新消息。新旧 Partition 数据不做迁移，这也是 Key 路由断裂的根本原因）"
+    ]
+  },
+  {
+    "id": "K8-04",
+    "title": "分区重分配（kafka-reassign-partitions）流程与风险",
+    "category": "运维与监控",
+    "categoryId": 8,
+    "level": "L3",
+    "background": "分区重分配是 Kafka 集群扩缩容和负载均衡的核心运维操作，操作不当可能导致集群网络带宽打满、ISR 收缩甚至服务中断。面试官通过这道题考察候选人的高级运维能力。",
+    "answerPoints": [
+      "使用场景：①新 Broker 加入集群后，老 Broker 上的 Partition 不会自动迁移，需要手动重分配；②某个 Broker 磁盘使用率过高，需要将部分 Partition 迁移到其他 Broker；③Broker 下线维护前，将其上的 Partition 提前迁移，实现无损下线",
+      "操作流程：①生成重分配计划：kafka-reassign-partitions.sh --generate（指定要迁移的 Topic 和目标 Broker 列表，工具生成 JSON 格式的重分配方案）；②执行重分配：kafka-reassign-partitions.sh --execute（提交 JSON 计划，Kafka Controller 开始将数据从源 Broker 复制到目标 Broker）；③监控进度：kafka-reassign-partitions.sh --verify（查看每个 Partition 的迁移状态）",
+      "重分配的原理：数据迁移实质是目标 Broker 作为新 Follower 加入 ISR，从源 Broker 同步全量数据；同步完成后，更新 Partition 的 Preferred Leader；最后从 ISR 中移除旧 Broker 的副本。整个过程不中断服务",
+      "风险与代价：①大量数据迁移会消耗源和目标 Broker 的磁盘 IO 和网络带宽，可能影响正常业务流量（ISR 复制和重分配共用网络）；②迁移过程中 ISR 扩大（增加新 Follower），HW 推进需要等待新 Follower 同步，可能增加写入延迟；③重分配计划错误（如目标 Broker 磁盘不足）可能导致迁移失败，Partition 处于不一致状态",
+      "限流操作：通过 kafka-reassign-partitions.sh --throttle <bytes/s> 限制迁移带宽（如 50MB/s），防止重分配抢占业务带宽。迁移完成后必须使用 --throttle -1 清除限制，否则正常复制也会被限速"
+    ],
+    "codeExample": {
+      "code": "# Step 1: 生成重分配计划（将 my-topic 迁移到 broker 1,2,3）\necho '{\"topics\":[{\"topic\":\"my-topic\"}],\"version\":1}' > topics.json\nkafka-reassign-partitions.sh \\\n  --bootstrap-server broker:9092 \\\n  --broker-list \"1,2,3\" \\\n  --topics-to-move-json-file topics.json \\\n  --generate > reassignment.json\n\n# Step 2: 执行重分配（限流 50MB/s 避免影响业务）\nkafka-reassign-partitions.sh \\\n  --bootstrap-server broker:9092 \\\n  --reassignment-json-file reassignment.json \\\n  --throttle 52428800 \\\n  --execute\n\n# Step 3: 监控进度\nkafka-reassign-partitions.sh \\\n  --bootstrap-server broker:9092 \\\n  --reassignment-json-file reassignment.json \\\n  --verify\n\n# Step 4: 迁移完成后清除限流\nkafka-reassign-partitions.sh \\\n  --bootstrap-server broker:9092 \\\n  --reassignment-json-file reassignment.json \\\n  --throttle -1 --execute",
+      "language": "bash",
+      "explanation": "throttle 参数是生产操作的关键——不加限流的重分配可能导致 Broker 网络带宽打满，影响正常业务。迁移完成后必须清除限流，否则正常的 ISR 同步也会受影响。"
+    },
+    "followUp": [
+      "重分配执行到一半时，Broker 宕机会怎样？（答：Controller 会检测到异常，中止迁移。Partition 的 ISR 可能处于中间状态（新旧 Broker 各有副本）。可以重新执行 --execute 继续迁移，或执行 --cancel 取消迁移恢复原状）",
+      "如何在不停机的情况下安全缩减 Broker 数量？（答：①先用重分配将要下线 Broker 上的所有 Partition 迁移走；②确认 UnderReplicatedPartitions=0 且下线 Broker 上无 Leader；③将 Broker 从 Preferred Leader 列表中移除；④停止 Broker 进程。整个过程不中断服务）"
+    ]
+  },
+  {
+    "id": "K8-05",
+    "title": "Broker OOM 的常见原因与排查步骤",
+    "category": "运维与监控",
+    "categoryId": 8,
+    "level": "L3",
+    "background": "Kafka Broker OOM 是生产环境中严重的故障，会导致 Broker 进程崩溃、ISR 收缩甚至数据丢失。面试官通过这道题考察候选人是否具备 JVM 内存问题的系统性排查能力。",
+    "answerPoints": [
+      "常见 OOM 原因：①堆内存不足（Heap OOM）：Broker 处理大量并发请求时，NetworkClient 和 LogManager 的对象创建速度超过 GC 回收速度，老年代溢出；②直接内存不足（Direct Buffer OOM）：Java NIO 使用 Direct Buffer（堆外内存），Kafka 的 sendfile 和 SSL 操作大量使用直接内存，若 -XX:MaxDirectMemorySize 未设置或过小则 OOM；③消息过大导致的内存爆炸：单条消息超过 message.max.bytes 但 Broker 未拒绝（配置不一致），或 Consumer 一次拉取过多数据导致临时内存飙升",
+      "排查步骤：①查看 Broker 日志（server.log / kafka-gc.log）中的 OutOfMemoryError 堆栈，确认是 Heap OOM 还是 Direct OOM 还是其他内存区域；②如果有 Heap Dump（JVM 启动参数需加 -XX:+HeapDumpOnOutOfMemoryError），使用 MAT（Memory Analyzer Tool）分析大对象和内存泄漏；③如果无 Heap Dump，查看 GC 日志中老年代的增长趋势，判断是泄漏还是配置不当",
+      "Heap OOM 的解决方案：①调整 JVM 堆大小（-Xms6g -Xmx6g，不建议超过 8GB，过大加重 GC）；②检查是否有大量长连接或大 Batch 消息占用内存；③升级 G1GC 或 ZGC 改善内存回收效率；④检查 queued.max.requests 是否过大（Request Queue 占用大量内存）",
+      "Direct OOM 的解决方案：显式设置 -XX:MaxDirectMemorySize（建议与堆大小相同，如 -XX:MaxDirectMemorySize=6g）；检查是否大量使用 SSL（SSL 需要额外直接内存），考虑在 LB 层终止 SSL；减少 socket.receive.buffer.bytes 和 socket.send.buffer.bytes 的值",
+      "预防措施：①配置 JVM OOM 自动触发 Heap Dump（-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp/kafka-heap-dump.hprof）；②监控 JVM 内存指标（jvm.memory.heap.used / jvm.memory.nonheap.used），在使用率达到 80% 时告警；③定期检查 Broker 日志中的 GC 频率和停顿时间"
+    ],
+    "followUp": [
+      "Kafka Broker 的直接内存和 PageCache 有什么区别？（答：直接内存（Direct Buffer）是 JVM 管理的堆外内存，通过 -XX:MaxDirectMemorySize 限制，用于 NIO Channel；PageCache 是操作系统管理的文件系统缓存，不在 JVM 控制范围内，Kafka 主动利用 PageCache 提升 IO 性能。两者都是「堆外」，但管理方不同）",
+      "如果 Broker 反复 OOM，但每次 Heap Dump 都没有明显泄漏，可能是什么原因？（答：可能是 Direct OOM 而非 Heap OOM（-XX:+HeapDumpOnOutOfMemoryError 只对 Heap OOM 触发 Dump）；或者是本地内存泄漏（Native Memory，如 JNI 调用）；检查 /proc/<pid>/status 中的 VmRSS 和 VmPeak 排查）"
+    ]
+  },
+  {
+    "id": "K8-06",
+    "title": "滚动重启 Broker 的正确顺序，如何保证重启过程中无消息丢失？",
+    "category": "运维与监控",
+    "categoryId": 8,
+    "level": "L3",
+    "background": "滚动重启是 Kafka 集群日常运维中最高频的操作（升级、配置变更）。操作顺序不当会导致数据丢失、服务中断。面试官通过这道题考察候选人的生产运维规范意识。",
+    "answerPoints": [
+      "滚动重启的前提条件：①所有 Partition 的 UnderReplicatedPartitions=0（全部 ISR 健康）；②集群无进行中的分区重分配；③min.insync.replicas 和 replication.factor 配置合理（RF=3, min.insync.replicas=2），允许单 Broker 重启时 ISR 暂时减少",
+      "正确的重启顺序：①先重启非 Controller Broker，逐一重启，每次重启后等待：该 Broker 完全启动（JMX 端口可连接）+ UnderReplicatedPartitions 恢复为 0（所有 ISR 重新同步完成）；②最后重启 Controller Broker（重启 Controller 会触发 Controller 选举，期间集群元数据变更暂停，但数据读写不受影响）",
+      "为什么要等 UnderReplicatedPartitions 恢复为 0：Broker 重启后，之前由该 Broker 托管的 Partition 副本需要重新同步（从 Leader 拉取缺失消息）。如果未等同步完成就重启下一个 Broker，可能导致 ISR 中只剩 1 个副本，违反 min.insync.replicas=2，此时若 Leader 也重启，写入将失败甚至数据丢失",
+      "优雅关闭（Controlled Shutdown）：Kafka 支持优雅关闭（kill -15 或 kafka-server-stop.sh），Broker 关闭前会主动将自己持有的 Leader 迁移给其他 ISR 成员，减少 Leader 选举开销和消费者 Rebalance。不要使用 kill -9（强制关闭），会导致 Partition 的 Leader 瞬间失联，触发选举和 ISR 收缩",
+      "配置变更的注意事项：部分配置支持动态更新（kafka-configs.sh --alter）无需重启；不支持动态更新的配置（如 log.dirs）才需要滚动重启。优先使用动态更新减少重启次数"
+    ],
+    "codeExample": {
+      "code": "#!/bin/bash\n# 滚动重启 Kafka Broker 的安全脚本示例\n\nBROKERS=(\"broker1\" \"broker2\" \"broker3\")\nBOOTSTRAP=\"broker1:9092\"\n\nfor BROKER in \"${BROKERS[@]}\"; do\n  echo \"=== 开始重启 $BROKER ===\"\n\n  # 1. 优雅关闭 Broker（发送 SIGTERM，等待 controlled shutdown）\n  ssh $BROKER \"systemctl stop kafka\"\n\n  # 2. 等待 Broker 完全停止\n  sleep 5\n\n  # 3. 启动 Broker\n  ssh $BROKER \"systemctl start kafka\"\n\n  # 4. 等待 Broker 加入集群（最多等 5 分钟）\n  echo \"等待 $BROKER 启动并加入集群...\"\n  for i in $(seq 1 60); do\n    URP=$(kafka-topics.sh --bootstrap-server $BOOTSTRAP \\\n      --describe --under-replicated-partitions 2>/dev/null | wc -l)\n    if [ \"$URP\" -eq 0 ]; then\n      echo \"$BROKER 已就绪，UnderReplicatedPartitions=0\"\n      break\n    fi\n    echo \"等待中... UnderReplicatedPartitions=$URP\"\n    sleep 5\n  done\n\n  echo \"=== $BROKER 重启完成 ===\"\ndone",
+      "language": "bash",
+      "explanation": "核心逻辑：每个 Broker 重启后，等待 UnderReplicatedPartitions 降回 0 才重启下一个，确保始终有足够的 ISR 副本提供服务。生产环境应加入超时检测和失败回滚逻辑。"
+    },
+    "followUp": [
+      "如果重启过程中某个 Broker 启动失败，如何处理？（答：立即停止滚动重启，不继续重启剩余 Broker。检查失败 Broker 的日志排查原因（磁盘损坏、配置错误等），修复后重试。此时集群可能有 UnderReplicatedPartitions，但只要 Leader 还在，数据读写不受影响）",
+      "滚动重启期间，生产者和消费者需要做什么？（答：客户端通常无需特殊处理——生产者有重试机制，Leader 切换后会自动重连新 Leader；消费者 Rebalance 后重新分配 Partition。但应确保客户端配置了合理的重试参数（retries > 0, reconnect.backoff.ms）以平滑处理短暂的连接中断）"
+    ]
+  }
+]

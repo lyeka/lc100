@@ -1,0 +1,146 @@
+[
+  {
+    "id": "K7-01",
+    "title": "提升生产者吞吐量的关键参数组合（batch/linger/compression/buffer）",
+    "category": "性能调优",
+    "categoryId": 7,
+    "level": "L2/L3",
+    "background": "生产者调优是 Kafka 性能工程中最常见的需求，面试官通过这道题考察候选人是否有真实的性能优化经验，能否给出系统化的参数调优方案而非随机尝试。",
+    "answerPoints": [
+      "批量聚合参数：batch.size（默认 16KB → 调优 32~256KB）：增大 Batch 大小，每个网络请求携带更多消息；linger.ms（默认 0 → 调优 5~50ms）：等待更多消息积累进 Batch，即使 Batch 未满也发送。两者共同控制批量效率，linger.ms 是提升吞吐量最有效的单一参数",
+      "压缩参数：compression.type（none → snappy 或 lz4）：批量压缩整个 RecordBatch，网络传输量减少 50~70%，磁盘存储同步减少。lz4 速度最快（CPU 低），zstd 压缩率最高，snappy 介于两者之间。高吞吐场景首选 lz4",
+      "缓冲区参数：buffer.memory（默认 32MB → 调优 64~256MB）：生产者内存缓冲区，存放待发送的 ProducerBatch。缓冲区满后 send() 阻塞 max.block.ms（默认 60s），调大可以应对突发流量；max.in.flight.requests.per.connection（默认 5）：允许 Broker 端并发处理的未确认请求数，适当增大可提升吞吐，但开启幂等时最大 5",
+      "网络与连接参数：socket.send.buffer.bytes（默认 128KB → 调优 1~4MB）：Socket 发送缓冲区，高带宽场景适当调大；connections.max.idle.ms（默认 9 分钟）：适当缩短空闲连接超时，及时释放不必要连接",
+      "调优效果量化：合理配置后，单个生产者实例的吞吐量可从默认 ~10 MB/s 提升到 ~100 MB/s。关键指标：batch-size-avg（批次平均大小，越接近 batch.size 越好）、records-per-request-avg（每个请求的消息数，越高越好）"
+    ],
+    "codeExample": {
+      "code": "// 高吞吐生产者完整配置参考\nProperties props = new Properties();\nprops.put(\"bootstrap.servers\", \"broker1:9092,broker2:9092,broker3:9092\");\n\n// 批量聚合\nprops.put(\"batch.size\", String.valueOf(64 * 1024));          // 64KB\nprops.put(\"linger.ms\", \"20\");                               // 等待 20ms 聚合\n\n// 压缩\nprops.put(\"compression.type\", \"lz4\");                       // 速度最快\n\n// 缓冲\nprops.put(\"buffer.memory\", String.valueOf(128 * 1024 * 1024)); // 128MB\nprops.put(\"max.block.ms\", \"30000\");                         // 缓冲满时最多等 30s\n\n// 可靠性（不牺牲吞吐的情况下保证不丢）\nprops.put(\"acks\", \"all\");\nprops.put(\"enable.idempotence\", \"true\");\nprops.put(\"retries\", String.valueOf(Integer.MAX_VALUE));\nprops.put(\"delivery.timeout.ms\", \"120000\");",
+      "language": "java",
+      "explanation": "linger.ms=20 是提升吞吐的关键——即使 Batch 未填满，最多等 20ms 再发送。结合 batch.size=64KB 和 lz4 压缩，单生产者吞吐量可提升 5~10 倍，同时 acks=all 保证可靠性。"
+    },
+    "followUp": [
+      "调优后如何验证效果？（答：使用 JMX 指标监控 batch-size-avg（应接近 batch.size）、record-send-rate（消息发送速率）、compression-rate-avg（压缩率，越低表示压缩越好）。也可用 kafka-producer-perf-test.sh 做基准测试）",
+      "如果生产者的网络带宽成为瓶颈，还有什么优化手段？（答：①增加压缩率（改用 zstd）；②优化消息 Schema（Protobuf 比 JSON 小 5~10 倍）；③增加生产者实例分担发送压力；④检查是否有 Topic 的 Partition 分布不均导致网络热点）"
+    ]
+  },
+  {
+    "id": "K7-02",
+    "title": "提升消费者吞吐量的关键参数（fetch.min.bytes / max.poll.records / 并发模型）",
+    "category": "性能调优",
+    "categoryId": 7,
+    "level": "L2/L3",
+    "background": "消费者调优往往比生产者更复杂，因为消费速度同时受限于 Kafka 拉取效率和业务处理速度两个维度。面试官通过这道题考察候选人是否能系统性地分析消费瓶颈。",
+    "answerPoints": [
+      "拉取效率参数：fetch.min.bytes（默认 1 字节 → 调优 64KB~1MB）：Broker 等消息积累到这么多字节才响应 FetchRequest，减少网络往返次数，提升批量效率，但增加延迟；fetch.max.wait.ms（默认 500ms）：配合 fetch.min.bytes，若等待时间超过此值即使消息不足也返回，控制最大等待时间",
+      "批量处理参数：max.poll.records（默认 500 → 调优 100~2000）：每次 poll() 返回的最大消息数，增大可提升单次处理效率，但处理时间增加需对应调整 max.poll.interval.ms；fetch.max.bytes（默认 52MB）和 max.partition.fetch.bytes（默认 1MB）控制单次 Fetch 的数据量上限",
+      "并发消费模型：单线程 poll + 异步处理（推荐）——主线程负责 poll()，将处理任务提交到线程池，poll 频率高、延迟低；风险：offset 提交需要等待线程池任务完成，实现复杂度高。增加消费者实例数（横向扩展）——每个实例负责部分 Partition，最简单高效的扩容方式，受 Partition 数量限制",
+      "异步处理模式的 offset 管理：维护每个 Partition 的最大已完成 offset，线程池任务完成后更新；主线程在下一次 poll 前提交已完成的最大 offset。需要注意处理顺序（同一 Partition 的消息应保证顺序完成）",
+      "消费者实例数建议：消费者数量等于 Partition 数时并发度最大。如果消费处理耗时高（如需要请求外部服务），可以在单个消费者实例内引入线程池，在不超过 Partition 数的前提下提升并发"
+    ],
+    "codeExample": {
+      "code": "// 单 Poll 线程 + 多处理线程的高吞吐消费模型\nExecutorService executor = Executors.newFixedThreadPool(10);\nMap<TopicPartition, Long> completedOffsets = new ConcurrentHashMap<>();\n\nwhile (running) {\n    ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));\n\n    for (ConsumerRecord<String, String> record : records) {\n        TopicPartition tp = new TopicPartition(record.topic(), record.partition());\n        long offset = record.offset();\n        executor.submit(() -> {\n            processRecord(record);  // 异步处理（耗时操作）\n            // 记录完成的最大 offset（需要保证同 Partition 内的顺序提交）\n            completedOffsets.merge(tp, offset + 1, Math::max);\n        });\n    }\n\n    // 提交已完成的 offset\n    Map<TopicPartition, OffsetAndMetadata> toCommit = new HashMap<>();\n    completedOffsets.forEach((tp, off) -> toCommit.put(tp, new OffsetAndMetadata(off)));\n    if (!toCommit.isEmpty()) consumer.commitAsync(toCommit, null);\n}",
+      "language": "java",
+      "explanation": "主线程专注 poll()，保持心跳和 Rebalance 响应正常；线程池负责耗时的业务处理。注意：需要保证同一 Partition 内的 offset 单调递增提交，否则可能重复消费。"
+    },
+    "followUp": [
+      "增加消费者实例数超过 Partition 数，还能提升吞吐量吗？（答：不能，超过 Partition 数的消费者实例会空闲等待 Partition 分配，不参与消费，纯属资源浪费）",
+      "如何快速清理积压（Lag 过大）？（答：①临时增加消费者实例（水平扩展）；②如果业务允许，临时提高 max.poll.records（单次处理更多消息）；③极端情况下，跳过历史积压（重置 offset 到 latest），仅对允许数据丢失的场景适用）"
+    ]
+  },
+  {
+    "id": "K7-03",
+    "title": "如何估算一个 Topic 合理的分区数？分区数过多的副作用是什么？",
+    "category": "性能调优",
+    "categoryId": 7,
+    "level": "L2/L3",
+    "background": "分区数是 Topic 设计时最重要的决策之一，且创建后很难减少（只能增加），因此面试官用这道题考察候选人能否在初始设计时做出合理估算。",
+    "answerPoints": [
+      "分区数估算公式：目标吞吐量 / min(单分区生产者最大吞吐, 单分区消费者最大吞吐)。例如：目标 1GB/s，单分区生产 100MB/s，单分区消费 50MB/s，则 min=50，需要 1000/50 = 20 个分区。实际应加 50% 冗余，设置 30 个分区",
+      "经验规则：对于大多数业务 Topic，建议 Partition 数 = 最大消费者实例数 × 1.5~2（预留扩容空间）。对于消息量极大的 Topic（如日志采集），Partition 数 = 预期峰值 QPS / 单分区最大 QPS",
+      "分区数过多的副作用：①文件描述符消耗：每个 Partition 对应 3 个文件（.log/.index/.timeindex），1000 个 Partition 约消耗 3000 个 fd；单 Broker 建议不超过 4000 个 Partition；②Controller 元数据负担：分区越多，Controller 维护的状态机越复杂，Leader 选举和 ISR 变更更慢；③端到端延迟增加：分区越多，生产者批量效率下降（消息被散列到更多 Partition，每个 Batch 更小）；④Rebalance 变慢：消费者 Rebalance 时需要分配的 Partition 更多，JoinGroup/SyncGroup 时间更长",
+      "分区数只能增加不能减少：Kafka 不支持减少分区（会导致数据不一致）。如果初始设计过多，只能重建 Topic 并迁移数据（成本高）。过少则可以扩分区，但扩分区后 Key 路由变化，需要评估业务影响",
+      "推荐策略：初始设置「够用的最小值 × 2」（留余量但不过度），运营一段时间后根据实际 Lag 和吞吐量监控数据决定是否扩分区"
+    ],
+    "followUp": [
+      "扩分区会影响按 Key 路由的消息顺序吗？（答：会，扩分区后相同 Key 的消息可能路由到不同的 Partition（取模分母变了），之前在 P0 的 Key 现在可能路由到 P5，老消息和新消息散落在不同 Partition，顺序保证破坏。扩分区前必须评估业务影响）",
+      "Kafka 官方对单 Broker 的 Partition 数量有没有硬性限制？（答：没有硬性限制，但 Confluent 工程师的压测数据表明超过 4000 个 Partition 后延迟和 Controller 开销显著增加。实际应根据 Broker 内存和 CPU 核数综合评估）"
+    ]
+  },
+  {
+    "id": "K7-04",
+    "title": "热点分区（Skewed Partition）的成因与解决方案",
+    "category": "性能调优",
+    "categoryId": 7,
+    "level": "L3",
+    "background": "热点分区是 Kafka 集群中负载不均衡的典型表现，也是生产环境中性能问题的常见根因。面试官通过这道题考察候选人是否有识别和处理数据倾斜问题的实战经验。",
+    "answerPoints": [
+      "热点分区的成因：①Key 分布不均：如按 user_id 分区，少数大客户（Power User）的消息量占总量的 80%，这些 Key 对应的 Partition 成为热点；②消息大小不均：同一 Partition 的消息平均大小远大于其他 Partition；③业务逻辑集中：特定事件类型（如秒杀）在极短时间内集中写入同一 Key",
+      "热点分区的危害：①对应 Broker 的磁盘 IO、网络带宽、CPU 被打满；②Follower 同步该 Partition 消耗大量资源，导致 ISR 收缩；③消费者处理热点 Partition 的速度跟不上，Lag 持续增大；④整个 Broker 的其他 Partition 也受到影响（共享资源）",
+      "解决方案一（Key 打散）：对热点 Key 在业务层加随机后缀（如 user_123_0, user_123_1 ... user_123_N），将单一 Key 的流量散列到 N 个 Partition。消费者消费时按原始 Key（去掉后缀）聚合。适用：可以接受跨分区顺序消费的场景",
+      "解决方案二（独立 Topic）：为热点 Key 单独创建一个高吞吐 Topic，普通流量走原 Topic。消费者分别订阅两个 Topic。适用：热点 Key 明确且稳定（如特定大商户 ID）",
+      "解决方案三（增加分区数）：将热点 Partition 所在 Topic 的分区数翻倍，通过再平衡分散负载。局限：只对 Key 分布均匀的 Topic 有效，Key 严重倾斜时增加分区数效果有限，且会破坏已有 Key 的路由"
+    ],
+    "followUp": [
+      "如何监控热点分区？（答：通过 JMX 指标 kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec 按 Topic+Partition 维度监控写入字节速率；或通过 Broker 的磁盘 IO 和网络指标发现单个 Broker 负载异常；Grafana + Kafka Exporter 可以可视化各 Partition 的吞吐分布）",
+      "Key 打散后消费者如何保证同一原始 Key 的消息有序处理？（答：同一原始 Key 的消息分散到多个 Partition 后，天然无法保证跨 Partition 的顺序。如果需要顺序，必须在消费端实现「按原始 Key 的单线程串行处理」，或接受最终一致性而非严格顺序）"
+    ]
+  },
+  {
+    "id": "K7-05",
+    "title": "Broker 端 num.network.threads vs num.io.threads 的职责与调优",
+    "category": "性能调优",
+    "categoryId": 7,
+    "level": "L3",
+    "background": "Kafka Broker 的请求处理采用 Reactor 网络模型，理解网络线程和 IO 线程的职责划分，是进行 Broker 端性能调优的前提。",
+    "answerPoints": [
+      "Kafka Broker 的三层请求处理模型：①Acceptor 线程（1个）：监听 Socket 端口，接受新连接，将连接分配给 Processor 线程；②Processor 线程（num.network.threads 个，默认 8）：处理网络 I/O（读取请求、发送响应），不做业务逻辑，将解析好的请求放入 Request Queue；③Handler 线程（num.io.threads 个，默认 8）：从 Request Queue 取出请求，执行实际业务逻辑（日志读写、Leader 选举等），将结果放入 Response Queue 由 Processor 发回",
+      "num.network.threads 调优：该线程处理网络 I/O，CPU 密集度低但数量决定并发连接处理能力。建议值：CPU 核数 × 1.5 ~ 2。症状：若请求在 Request Queue 中排队（JMX: RequestQueueSize 持续增大），说明 Processor 不够，应增大 num.network.threads",
+      "num.io.threads 调优：该线程执行磁盘读写和业务逻辑，CPU 密集度高。建议值：CPU 核数 × 2（考虑磁盘 I/O 等待时间，线程数可超过核数）。症状：若响应在 Response Queue 中积压（JMX: ResponseQueueSize），或磁盘 I/O 满但 Handler 线程空闲，说明 I/O 线程不够",
+      "监控指标：RequestHandlerAvgIdlePercent（Handler 线程空闲比例，建议 > 30%）和 NetworkProcessorAvgIdlePercent（Processor 线程空闲比例，建议 > 30%）。接近 0% 说明对应线程池是瓶颈",
+      "队列大小配置：queued.max.requests（默认 500）：Request Queue 的最大深度，超出后新请求被阻塞。高吞吐场景可适当调大（如 1000），防止突发流量时请求被拒绝"
+    ],
+    "followUp": [
+      "Kafka 为什么把网络线程和 IO 线程分开，而不是让同一个线程做所有事？（答：职责分离的 Reactor 模式——网络线程专注低延迟 I/O 等待，IO 线程专注耗时的磁盘操作。两者独立扩展，防止磁盘慢速拖慢网络响应，提升整体并发处理能力）",
+      "如果 Broker 的 CPU 核数从 16 增加到 32，应该同步调整哪些线程数？（答：num.network.threads（从 16 增到 24~32），num.io.threads（从 16 增到 32~48），num.replica.fetchers（副本同步线程，也应相应增加）。所有线程池都应按 CPU 核数等比调整）"
+    ]
+  },
+  {
+    "id": "K7-06",
+    "title": "JVM GC 对 Kafka Broker 的影响：为什么推荐 G1GC / ZGC？",
+    "category": "性能调优",
+    "categoryId": 7,
+    "level": "L3",
+    "background": "JVM GC 停顿是 Kafka Broker 延迟突刺（Latency Spike）的重要来源，也是导致 ISR 收缩、消费者 Rebalance 的常见根因。在 Java 应用面试中是必问的深度题。",
+    "answerPoints": [
+      "GC 对 Kafka 的具体影响：Full GC 停顿（STW）期间，Broker 无法处理任何请求——Follower 的 Fetch 请求得不到响应，超过 replica.lag.time.max.ms 后被踢出 ISR；消费者心跳得不到响应，超过 session.timeout.ms 后触发 Rebalance；生产者请求超时，触发重试",
+      "为什么 Kafka Broker 容易触发 Full GC：Broker 需要大量内存缓存（主要是 PageCache，不占 JVM 堆），JVM 堆不应过大（通常 6~8GB）；但堆内对象（如 NetworkClient 的请求缓冲、日志段的元数据）仍会产生大量短生命周期对象，Minor GC 频繁；如果对象晋升到老年代（如大对象、高并发下来不及 GC），则触发 Full GC",
+      "ParallelGC 的问题（旧版默认）：Full GC 采用 Stop-The-World，停顿时间与堆大小成正比。6GB 堆的 Full GC 可能停顿 10~30 秒，期间集群雪崩",
+      "G1GC 的优势（推荐，JDK 9+ 默认）：将堆分为大小相等的 Region，并发标记和增量回收，避免全堆 STW。Full GC 停顿通常 < 200ms。配置：-Xms6g -Xmx6g -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:G1HeapRegionSize=16m",
+      "ZGC / Shenandoah 的进一步优化（JDK 15+）：几乎全并发的 GC，STW 停顿通常 < 10ms（与堆大小无关），代价是略高的 CPU 开销（~5%）和吞吐量损失。对 Kafka 这种对延迟极度敏感的场景，ZGC 是未来趋势",
+      "堆大小建议：Kafka Broker 的 JVM 堆保持 6~8GB，不要过大（过大反而会加重 GC 压力）。Kafka 大量依赖操作系统 PageCache（堆外），留出充足的物理内存给 PageCache（建议物理内存的 50~60% 给 PageCache）"
+    ],
+    "followUp": [
+      "如何排查 Kafka Broker 是否因 GC 停顿导致 ISR 收缩？（答：①查看 Broker GC 日志（-Xloggc 配置），找到与 ISR 收缩时间点吻合的 GC 停顿记录；②对比 ISR 收缩的时间戳和 GC 停顿的时间戳；③JMX 指标 jvm.gc.collection.time 可实时监控 GC 耗时）",
+      "Kafka 官方推荐的 JVM 参数是什么？（答：-Xms6g -Xmx6g -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:G1HeapRegionSize=16m -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent -Djava.awt.headless=true）"
+    ]
+  },
+  {
+    "id": "K7-07",
+    "title": "Kafka 延迟消息的实现思路（Kafka 无原生支持，如何绕过？）",
+    "category": "性能调优",
+    "categoryId": 7,
+    "level": "L2/L3",
+    "background": "延迟消息是电商、支付场景中的常见需求（如「下单 30 分钟未支付自动取消」），但 Kafka 不原生支持。面试官通过这道题考察候选人能否在 Kafka 的约束下设计变通方案。",
+    "answerPoints": [
+      "Kafka 不支持延迟消息的原因：Kafka 是 append-only log，消息按写入顺序存储，无法在未来某个时刻才让消息变为「可消费」状态（没有延迟队列的概念）",
+      "方案一（外部存储 + 定时扫描）：消息先写入 Redis ZSet（score = 触发时间戳），定时任务（如每秒）扫描到期消息，发送到 Kafka 的真正消费 Topic。优点：简单，Redis 性能高；缺点：Redis 是单点，大量延迟消息时 ZSet 可能很大；定时扫描有最多 1 秒延迟",
+      "方案二（时间轮 + Kafka 多级 Topic）：参考 RocketMQ 的实现，设计 N 个延迟级别对应 N 个 Kafka Topic（如 delay-1s, delay-5s, delay-30s, delay-1m ...），消息发到对应延迟 Topic，专门的 Delay Consumer 周期性消费这些 Topic，到期后转发到业务 Topic。缺点：只支持固定延迟级别，不支持任意延迟时间",
+      "方案三（Kafka Streams + 状态存储）：利用 Kafka Streams 的 punctuate() 定时回调，将延迟消息存储在 Streams 的本地状态存储（RocksDB），定时检查到期消息并写出到目标 Topic。优点：实现在 Kafka 生态内；缺点：复杂度高，状态存储有大小限制",
+      "生产推荐：如果已有 RocketMQ，优先用 RocketMQ（原生支持延迟消息）。纯 Kafka 场景，方案一（Redis ZSet）是最简单可靠的选择，Redis 集群化后可承载亿级延迟消息"
+    ],
+    "followUp": [
+      "如果延迟时间是任意的（如精确到秒），而不是固定级别，哪种方案更合适？（答：方案一（Redis ZSet）天然支持任意 score，每条消息的延迟时间可以完全自定义；方案二的固定级别不支持任意延迟）",
+      "方案一中如果定时扫描任务崩溃了，会有消息丢失吗？（答：消息存在 Redis ZSet 中，定时任务重启后可以继续扫描。但如果 Redis 数据丢失（未持久化），则消息丢失。生产环境应开启 Redis AOF 持久化，并配置 Redis 主从/哨兵保证高可用）"
+    ]
+  }
+]

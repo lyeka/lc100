@@ -1,0 +1,166 @@
+[
+  {
+    "id": "K4-01",
+    "title": "Consumer Group 的设计意图，分区与消费者的分配规则",
+    "category": "消费者与消费组",
+    "categoryId": 4,
+    "level": "L2",
+    "background": "Consumer Group 是 Kafka 横向扩展消费能力的核心机制，同时也是实现发布-订阅和点对点两种模式的统一抽象。理解它的设计意图是后续理解 Rebalance 的基础。",
+    "answerPoints": [
+      "设计意图：Consumer Group 让多个消费者实例协同消费一个 Topic，实现消费端的水平扩展。同一 Group 内，每个 Partition 只分配给一个消费者，保证消息不被重复处理；不同 Group 订阅同一 Topic 时，每个 Group 独立消费全量消息（发布-订阅模式）",
+      "分区分配的核心规则：①一个 Partition 在同一时刻只能被 Consumer Group 内的一个消费者消费；②消费者数量 > Partition 数量时，多余的消费者空闲（无 Partition 分配）；③消费者数量 < Partition 数量时，部分消费者会负责多个 Partition",
+      "最大并发度 = Partition 数量：这是扩容消费者的上限。超过 Partition 数的消费者实例不会带来额外并发，反而浪费资源。设计 Topic 时应提前规划好 Partition 数量以支撑未来扩容",
+      "Group Coordinator：Broker 集群中有一个特定的 Broker 被选为该 Consumer Group 的协调者（通过 __consumer_offsets Partition 的 Leader 决定），负责管理组成员、触发 Rebalance、存储 offset",
+      "两种消费模式的统一：①点对点（Queue 模式）：所有消费者加入同一个 Group，每条消息只被处理一次；②发布-订阅（Pub-Sub 模式）：每类消费者建立独立的 Group，每个 Group 各自消费完整消息流"
+    ],
+    "followUp": [
+      "如果想让同一条消息被两个不同业务模块都消费，该怎么设计？（答：为每个业务模块创建独立的 Consumer Group，各组独立维护 offset，互不影响，每个 Group 都能消费到全量消息）",
+      "Consumer Group 的 group.id 如果两个服务配置了相同的值会怎样？（答：它们会被视为同一个 Group，Partition 会在两个服务的实例间分配，每条消息只被其中一个服务消费，通常是 Bug）"
+    ]
+  },
+  {
+    "id": "K4-02",
+    "title": "Rebalance 触发条件 + JoinGroup / SyncGroup 两阶段流程",
+    "category": "消费者与消费组",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "background": "Rebalance 是 Kafka 消费组中最复杂的机制，也是导致消费延迟和重复消费的主要来源。每次面试必问，能完整描述两阶段流程的候选人较少。",
+    "answerPoints": [
+      "Rebalance 触发条件：①消费者加入 Group（新实例启动）；②消费者离开 Group（实例关闭、崩溃、或 session.timeout.ms 超时未发心跳）；③消费者超过 max.poll.interval.ms 未调用 poll()（处理太慢，被 Coordinator 踢出）；④Topic 的 Partition 数量变化（扩分区）；⑤订阅的 Topic 新增（使用通配符订阅时）",
+      "JoinGroup 阶段：①所有消费者向 Group Coordinator 发送 JoinGroupRequest，携带自己支持的 Partition 分配策略列表；②Coordinator 等待所有成员（或超时），选出一个消费者作为 Group Leader（通常是第一个加入的）；③Coordinator 向所有成员返回 JoinGroupResponse，Leader 收到完整成员列表，普通成员只收到自己的 memberId",
+      "SyncGroup 阶段：①Group Leader 在本地执行 Partition 分配算法，得出分配方案；②Leader 将分配结果通过 SyncGroupRequest 发给 Coordinator；③所有成员（包括 Leader 自己）向 Coordinator 发 SyncGroupRequest；④Coordinator 将对应的分配结果通过 SyncGroupResponse 下发给每个成员；⑤各消费者按新分配开始消费",
+      "Stop-The-World 问题：传统 Eager Rebalance 在 JoinGroup 开始时，所有消费者必须先停止消费并放弃当前所有 Partition，等待 SyncGroup 完成后才重新开始。这段「停服」时间可能持续数百毫秒到数秒，导致消费延迟和 Lag 积累",
+      "Rebalance 期间的消息安全性：Rebalance 前未提交的 offset 在重分配后可能被其他消费者从上次提交的 offset 开始重新消费，导致重复消费。因此 Rebalance 前最好 commitSync() 保存当前进度"
+    ],
+    "codeExample": {
+      "code": "// 监听 Rebalance 事件，在 Rebalance 前提交 offset（避免重复消费）\nconsumer.subscribe(topics, new ConsumerRebalanceListener() {\n    @Override\n    public void onPartitionsRevoked(Collection<TopicPartition> partitions) {\n        // Rebalance 前触发：提交当前进度\n        consumer.commitSync(currentOffsets);\n        System.out.println(\"Rebalance: 释放分区 \" + partitions);\n    }\n\n    @Override\n    public void onPartitionsAssigned(Collection<TopicPartition> partitions) {\n        // Rebalance 后触发：可在此处恢复状态\n        System.out.println(\"Rebalance: 分配到分区 \" + partitions);\n    }\n});",
+      "language": "java",
+      "explanation": "通过 ConsumerRebalanceListener 在 onPartitionsRevoked 中同步提交 offset，确保 Rebalance 前的消费进度被持久化，避免新消费者从旧 offset 重新消费。"
+    },
+    "followUp": [
+      "如何在代码层面减少 Rebalance 的影响？（答：①使用 ConsumerRebalanceListener 在 onPartitionsRevoked 提交 offset；②使用协作式 Rebalance（Cooperative Rebalance）减少停服时间；③设置合理的 session.timeout.ms 避免频繁误判死亡）",
+      "Rebalance 过程中，Group Coordinator 所在的 Broker 宕机会怎样？（答：__consumer_offsets 的这个 Partition 的 Leader 切换到其他 Broker，新 Broker 接管 Coordinator 职责，触发一次新的 Rebalance）"
+    ]
+  },
+  {
+    "id": "K4-03",
+    "title": "Eager Rebalance vs Cooperative（增量）Rebalance 的本质区别",
+    "category": "消费者与消费组",
+    "categoryId": 4,
+    "level": "L3",
+    "background": "Cooperative Rebalance（KIP-429，Kafka 2.4+）是对 Kafka 消费组机制的重大改进，解决了传统 Stop-The-World 的问题。了解这个演进能体现候选人对 Kafka 新特性的持续关注。",
+    "answerPoints": [
+      "Eager Rebalance（贪婪重平衡）的问题：重平衡开始时，所有消费者立即放弃所有 Partition，停止消费，等待 Coordinator 重新分配。即使只有一个消费者加入/离开，全部 Partition 都要「归零重来」，造成整个 Group 的消费停顿",
+      "Cooperative Rebalance（增量重平衡）的核心思想：只迁移需要变动的 Partition，不需要变动的 Partition 让原消费者继续持有和消费，实现「最小化中断」",
+      "Cooperative Rebalance 的两轮流程：第一轮——消费者携带当前持有的 Partition 信息加入 JoinGroup，Coordinator 计算出需要撤销的 Partition（被转移走的），通知对应消费者释放；第二轮——被撤销 Partition 的消费者发起第二次 JoinGroup，Coordinator 完成最终分配。不需要变动的 Partition 在两轮之间始终继续消费",
+      "性能对比：Eager Rebalance 停服时间 = JoinGroup + SyncGroup 时间（全部停止）；Cooperative Rebalance 停服时间 ≈ 仅迁移 Partition 的短暂中断（通常 < 100ms），未迁移 Partition 完全不受影响",
+      "如何启用：设置 partition.assignment.strategy=org.apache.kafka.clients.consumer.CooperativeStickyAssignor（Kafka 2.4+）。注意：从 Eager 策略迁移到 Cooperative 策略需要滚动升级，中间会经历一次完整的 Eager Rebalance",
+      "KIP-848（Kafka 4.0+）：下一代 Consumer Group Protocol，进一步消除全局同步屏障，每个消费者独立与 Coordinator 交互，彻底实现增量式的成员变更，Rebalance 速度再提升数倍"
+    ],
+    "followUp": [
+      "使用 CooperativeStickyAssignor 后，Partition 的分配结果和 StickyAssignor 一样吗？（答：分配逻辑相同（尽量保持 Partition 的原消费者），区别在于执行方式：CooperativeStickyAssignor 用增量方式执行，StickyAssignor 用 Eager 方式执行）",
+      "Cooperative Rebalance 是否完全消除了 Rebalance 期间的重复消费？（答：不完全。被迁移的 Partition 在交接期间可能从上次提交的 offset 重新开始，仍存在短暂重复。但未迁移 Partition 完全无重复）"
+    ]
+  },
+  {
+    "id": "K4-04",
+    "title": "session.timeout.ms / max.poll.interval.ms / heartbeat.interval.ms 三者如何配合？",
+    "category": "消费者与消费组",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "background": "这三个参数是 Kafka 消费者最容易配错的参数，配置不当会导致频繁 Rebalance 或消费者长时间假死。面试官通过这道题考察候选人对消费者存活检测机制的深度理解。",
+    "answerPoints": [
+      "heartbeat.interval.ms（默认 3000ms）：消费者向 Coordinator 发送心跳的频率。心跳是独立的后台线程发送，与 poll() 无关。Coordinator 通过心跳判断消费者是否活跃，心跳响应中也会携带 Rebalance 通知",
+      "session.timeout.ms（默认 45000ms，Kafka 3.0+ 前默认 10000ms）：Coordinator 判定消费者死亡的超时时间。若在此时间内未收到心跳，Coordinator 将该消费者从 Group 移除，触发 Rebalance。应设置为 heartbeat.interval.ms 的 3 倍以上，留出网络抖动的余量",
+      "max.poll.interval.ms（默认 300000ms，即 5 分钟）：消费者两次调用 poll() 之间的最大间隔。这个超时针对的是「消费者活着但处理消息太慢（不调用 poll）」的场景。超时后消费者主动离开 Group 触发 Rebalance，防止一个慢消费者长期占用 Partition 但不消费",
+      "三者关系：heartbeat 保证 session 不超时（heartbeat.interval ≪ session.timeout）；session.timeout 检测消费者崩溃（心跳停止）；max.poll.interval 检测消费者「假死」（活着但不 poll）",
+      "常见配置错误：①session.timeout 设太小（如 5s），GC 停顿或短暂网络抖动就触发 Rebalance；②max.poll.interval 小于实际处理时间，消费者来不及处理就被踢出；③heartbeat.interval 接近 session.timeout，来不及发送足够多的心跳",
+      "推荐配置（处理耗时较长的业务）：session.timeout.ms=45000, heartbeat.interval.ms=15000（session 的 1/3）, max.poll.interval.ms=600000（根据实际处理时间调整），max.poll.records=100（减少单次处理量）"
+    ],
+    "followUp": [
+      "消费者处理一条消息需要 10 分钟（如复杂 ETL），max.poll.interval.ms 应该怎么设？（答：设为大于 10 分钟，如 15 分钟。同时减小 max.poll.records=1 保证每次只处理一条，或者将处理逻辑改为异步，poll 线程不阻塞）",
+      "心跳线程和 poll 线程是同一个线程吗？（答：不是。Kafka 2.0+ 消费者的心跳由独立的后台线程 HeartbeatThread 发送，poll 阻塞不会影响心跳。但 max.poll.interval 超时仍会触发主动离组）"
+    ]
+  },
+  {
+    "id": "K4-05",
+    "title": "offset 提交三种策略（自动/同步/异步）的风险与适用场景",
+    "category": "消费者与消费组",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "background": "offset 提交策略直接决定消费语义（at-least-once vs at-most-once）。面试官通过这道题考察候选人对 Kafka 消费可靠性的工程实践理解。",
+    "answerPoints": [
+      "自动提交（enable.auto.commit=true，auto.commit.interval.ms=5000）：消费者每隔 5 秒自动提交最近一次 poll() 返回的最大 offset。最简单但风险最高——若消息 poll 出来后 5 秒内应用崩溃且业务未处理完，下次从已提交的 offset 开始消费，这批消息被「跳过」（at-most-once）；若刚好在提交后崩溃但有部分消息未处理，下次重新消费（at-least-once）",
+      "同步提交 commitSync()：在业务处理成功后调用，阻塞等待 Broker 确认 offset 提交。提交成功才继续 poll 下一批。保证 at-least-once（处理成功后提交），但吞吐量低（每批都需要阻塞等待）。适合：对可靠性要求高、吞吐量要求不高的场景",
+      "异步提交 commitAsync(callback)：非阻塞提交，立即返回，通过回调得知结果。吞吐量高，但提交可能失败且不自动重试（防止旧 offset 覆盖新 offset）。若在回调前发生 Rebalance，新消费者从旧 offset 开始，导致重复消费",
+      "最佳实践——同步 + 异步组合：正常循环中用 commitAsync()（高性能），在 Rebalance 前（onPartitionsRevoked）和应用关闭时用 commitSync()（确保最终状态被持久化）",
+      "手动提交的粒度优化：除了提交整批 offset，还可以 commitSync(Map<TopicPartition, OffsetAndMetadata>) 精确提交每条消息处理完成后的 offset，实现更细粒度的进度保存，减少重复消费范围"
+    ],
+    "codeExample": {
+      "code": "// 同步 + 异步混合提交（推荐实践）\ntry {\n    while (running) {\n        ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));\n        for (ConsumerRecord<String, String> record : records) {\n            process(record);  // 业务处理\n            currentOffsets.put(\n                new TopicPartition(record.topic(), record.partition()),\n                new OffsetAndMetadata(record.offset() + 1)\n            );\n        }\n        consumer.commitAsync(currentOffsets, (offsets, exception) -> {\n            if (exception != null) log.error(\"提交失败: \" + offsets, exception);\n        });\n    }\n} finally {\n    try {\n        consumer.commitSync(currentOffsets);  // 关闭前同步提交，确保不丢进度\n    } finally {\n        consumer.close();\n    }\n}",
+      "language": "java",
+      "explanation": "循环内用 commitAsync 保持高吞吐，finally 块用 commitSync 确保关闭时最终状态落盘。这是 Kafka 官方文档推荐的提交模式。"
+    },
+    "followUp": [
+      "commitAsync 失败后为什么不应该重试？（答：异步提交是乱序的——若提交 offset=100 失败，此时可能 offset=200 的提交已成功；若重试 offset=100，会将 Broker 上已提交的 200 回退到 100，导致大量重复消费）",
+      "能做到精确一次消费（exactly-once）而不用 Kafka 事务吗？（答：业务层可以通过「幂等处理 + 数据库唯一约束」实现效果上的 exactly-once——重复消费时数据库拒绝重复写入，但这依赖业务存储支持原子操作，不是 Kafka 层的保证）"
+    ]
+  },
+  {
+    "id": "K4-06",
+    "title": "提交 offset 先于业务处理完成会有什么后果？如何避免？",
+    "category": "消费者与消费组",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "background": "这是「消费者侧消息丢失」最经典的场景，与生产者侧的消息丢失形成对称。很多使用自动提交的开发者不清楚自己正在承受这个风险。",
+    "answerPoints": [
+      "问题场景：使用 enable.auto.commit=true 时，消费者 poll 出一批消息（如 offset 0~99），在 auto.commit.interval.ms（5s）内自动提交了 offset=100；此后消费者在处理 offset 50 时崩溃，重启后从 offset=100 开始消费，offset 50~99 的消息永远不会被处理——这是消息丢失（at-most-once）",
+      "另一种场景（异步处理模式）：消费者 poll 出消息后，将处理任务提交到线程池（异步处理），然后立即提交 offset（或者 linger 时间触发自动提交），线程池中的任务尚未完成时崩溃，同样导致消息丢失",
+      "根本原因：offset 提交语义上表示「这条消息已处理完成」，但代码逻辑上提交的时机早于实际完成时机，两者出现了「时间差」",
+      "避免方法：①关闭自动提交（enable.auto.commit=false），手动在业务处理成功后调用 commitSync() 或 commitAsync()；②异步处理模式下，需要等待线程池中所有任务处理完成后再提交 offset，通常用 CountDownLatch 或 CompletableFuture 协调；③使用 Kafka Streams 的 exactly-once 模式，框架自动处理提交时机",
+      "兜底策略：业务逻辑实现幂等性（如根据消息 ID 去重），即使偶发重复消费，也不会造成业务错误——这是最实用的防御手段"
+    ],
+    "followUp": [
+      "如果处理完消息后调用 commitSync() 时网络超时，会有什么问题？（答：消息已处理但 offset 未提交，下次重启后会重新消费该消息，导致重复处理。这是 at-least-once 语义，用业务幂等兜底）",
+      "如何实现「最多只重复消费 1 条」的精确控制？（答：每处理完一条消息就提交一次 offset（细粒度提交），而不是一批提交一次。吞吐量会降低，但重复范围最小化）"
+    ]
+  },
+  {
+    "id": "K4-07",
+    "title": "__consumer_offsets 内部 Topic 的作用，offset 存在哪里？",
+    "category": "消费者与消费组",
+    "categoryId": 4,
+    "level": "L2",
+    "background": "Kafka 0.9 之前 offset 存在 ZooKeeper，之后迁移到 Kafka 内部 Topic。理解这个机制能帮助候选人回答「Broker 重启后 offset 是否丢失」等实战问题。",
+    "answerPoints": [
+      "__consumer_offsets 是 Kafka 的内置 Topic，默认 50 个 Partition，Replication Factor 由 offsets.topic.replication.factor（默认 3）控制。它使用 Log Compaction 策略，只保留每个 (group.id, topic, partition) 的最新 offset",
+      "offset 写入：消费者调用 commitSync/commitAsync 时，Kafka 客户端向对应的 __consumer_offsets Partition 写入一条消息，Key 为 (group.id, topic, partition)，Value 为 (offset, timestamp, metadata, leader_epoch)",
+      "Partition 路由：消费者属于哪个 __consumer_offsets Partition？通过 abs(group.id.hashCode()) % 50 计算得出。该 Partition 的 Leader 所在 Broker 即为该 Group 的 Coordinator",
+      "offset 恢复：Broker 重启时，__consumer_offsets 的 Partition 经过 Log Compaction 后，内存中可快速加载每个 Group 的最新 offset，消费者重连后无需重置 offset",
+      "保留时间：由 offsets.retention.minutes（默认 7 天）控制。如果一个 Consumer Group 超过 7 天没有活跃成员，其 offset 会被删除，下次重启时会触发 auto.offset.reset 策略"
+    ],
+    "followUp": [
+      "如何查看某个 Consumer Group 当前提交的 offset？（答：使用命令 kafka-consumer-groups.sh --describe --group <group_id>，可以看到每个 Partition 的 committed offset、log-end-offset 和 Lag）",
+      "如果手动删除了 __consumer_offsets 中某个 Group 的 offset 记录，会发生什么？（答：该 Group 下次启动时找不到已提交的 offset，触发 auto.offset.reset（earliest 或 latest），可能导致重新消费或跳过历史消息）"
+    ]
+  },
+  {
+    "id": "K4-08",
+    "title": "如何排查消费者 Lag 持续增大的原因？",
+    "category": "消费者与消费组",
+    "categoryId": 4,
+    "level": "L2/L3",
+    "background": "Lag 暴增是 Kafka 生产环境中最常见的告警场景，考察候选人是否有真实的排查经验和系统化的分析思路。",
+    "answerPoints": [
+      "Lag 的定义：Lag = log-end-offset（Producer 最新写入位置） - committed-offset（Consumer 最新提交位置）。Lag 增大意味着消费速度跟不上生产速度",
+      "排查第一步——判断是生产加速还是消费变慢：观察 log-end-offset 的增长速度（生产侧）和 committed-offset 的增长速度（消费侧）。如果生产速度突增（如流量高峰），是正常现象；如果生产速度稳定但 committed-offset 增长停滞或变慢，说明消费侧出了问题",
+      "消费变慢的常见原因：①消费者所在机器 CPU / 内存 / 磁盘 IO 打满；②下游依赖（数据库/HTTP 接口）响应变慢，消费者处理单条消息耗时增加；③消费者频繁触发 Rebalance（Rebalance 期间停止消费）；④消费者 GC 停顿（Full GC）；⑤消费者线程数不够（只有 1 个消费者但 Partition 有 10 个）",
+      "排查工具：①kafka-consumer-groups.sh --describe 查看各 Partition 的 Lag 分布（是否所有 Partition 都 Lag，还是只有部分）；②JMX 指标：records-lag-max（最大 Lag）、fetch-rate（拉取频率）、records-consumed-rate（消费速率）；③消费者应用日志：是否有频繁的 Rebalance 日志或异常栈",
+      "应急处理：①短期：减少 max.poll.records，减小单次处理量；②增加消费者实例数（不超过 Partition 数）；③如果是下游瓶颈，启用背压机制或临时提高下游容量；④如果 Lag 过大，考虑临时将 auto.offset.reset 跳到最新，跳过历史积压（会丢失历史消息，慎用）"
+    ],
+    "followUp": [
+      "Lag=0 说明消费者一定健康吗？（答：不一定。Lag=0 说明消费速度 >= 生产速度。但如果生产者也停了（如 Broker 故障），Lag 自然为 0。应同时监控生产速率和消费速率）",
+      "某个分区的 Lag 特别高，其他分区正常，是什么原因？（答：该分区对应的消费者可能处理慢（如热点 Key 导致处理不均衡），或者该消费者实例负载高。可考虑将该消费者实例重启或将其负责的 Partition 迁移给其他消费者）"
+    ]
+  }
+]
