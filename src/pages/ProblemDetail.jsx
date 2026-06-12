@@ -1,5 +1,5 @@
 /**
- * [INPUT]: react (useState), react-router (useParams, Link), @/data/problems, @/components/CodeBlock, @/components/LearnedStamp, @/components/OpenInChatGPT
+ * [INPUT]: react (useState), react-router (useParams, Link), @/data/problems, @/components/CodeBlock, @/components/LearnedStamp, @/components/CopyPromptToAI, lucide-react (ExternalLink)
  * [OUTPUT]: ProblemDetail 古典书页阅读页
  * [POS]: 路由 /problem/:id，全站阅读体验核心
  *        书页容器 bg-card shadow-2xl 浮于深色桌面
@@ -9,9 +9,10 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router'
 import { problemMap } from '@/data/problems'
+import { ExternalLink } from 'lucide-react'
 import { CodeBlock } from '@/components/CodeBlock'
 import { LearnedStamp } from '@/components/LearnedStamp'
-import { OpenInChatGPT } from '@/components/OpenInChatGPT'
+import { CopyPromptToAI } from '@/components/CopyPromptToAI'
 import { Button } from '@/components/ui/button'
 
 /* ── 中文数字 ── */
@@ -142,7 +143,12 @@ export function ProblemDetail() {
         {/* ── 操作栏：已学标记 + ChatGPT 解读 ── */}
         <div className="flex items-center justify-center gap-2 py-4">
           <LearnedStamp section="leetcode" id={numId} total={totalProblems} />
-          <OpenInChatGPT prompt={buildPrompt(problem)} />
+          <CopyPromptToAI
+            prompt={buildPrompt(problem)}
+            label="AI 解读"
+            icon={ExternalLink}
+            ariaLabel="选择 AI 平台并复制算法题解读 prompt（新标签页打开）"
+          />
         </div>
 
         <div className="mt-8">

@@ -1,5 +1,5 @@
 /**
- * [INPUT]: react-router (useParams, Link), @/data/mysqlInterviews, @/components/ui/button, @/components/CodeBlock, @/components/LearnedStamp, @/components/OpenInChatGPT, @/lib/interviewPrompts, lucide-react (GraduationCap)
+ * [INPUT]: react-router (useParams, Link), @/data/mysqlInterviews, @/components/ui/button, @/components/CodeBlock, @/components/LearnedStamp, @/components/CopyPromptToAI, @/lib/interviewPrompts, lucide-react (ExternalLink)
  * [OUTPUT]: MysqlDetail 古典书页阅读页
  * [POS]: 路由 /mysql/:id，MySQL 面试题阅读体验核心
  *        书页容器 bg-card shadow-2xl 浮于深色桌面
@@ -8,12 +8,12 @@
  */
 import { useParams, Link } from 'react-router'
 import { mysqlInterviews, mysqlInterviewMap } from '@/data/mysqlInterviews'
-import { GraduationCap } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { LearnedStamp } from '@/components/LearnedStamp'
-import { OpenInChatGPT } from '@/components/OpenInChatGPT'
+import { CopyPromptToAI } from '@/components/CopyPromptToAI'
 import { Button } from '@/components/ui/button'
 import { CodeBlock } from '@/components/CodeBlock'
-import { buildExplainPrompt, buildAnswerPrompt, ROLE_MAP } from '@/lib/interviewPrompts'
+import { buildExplainPrompt } from '@/lib/interviewPrompts'
 
 /* ── 中文数字 ── */
 const CN_NUM = ['一','二','三','四','五','六','七','八','九','十','十一','十二']
@@ -119,15 +119,14 @@ export function MysqlDetail() {
           </div>
         </div>
         <OrnamentalRule />
-        {/* ── 操作栏：已学标记 + ChatGPT 解读 + 满分回答 ── */}
+        {/* ── 操作栏：已学标记 + AI 解读 ── */}
         <div className="flex items-center justify-center gap-2 py-4 flex-wrap">
           <LearnedStamp section="mysql" id={id} total={mysqlInterviews.length} />
-          <OpenInChatGPT prompt={buildExplainPrompt(question)} />
-          <OpenInChatGPT
-            prompt={buildAnswerPrompt(question, ROLE_MAP.mysql)}
-            label="ChatGPT 解答"
-            icon={GraduationCap}
-            ariaLabel="让 ChatGPT 生成面试解答（新标签页打开）"
+          <CopyPromptToAI
+            prompt={buildExplainPrompt(question)}
+            label="AI 解读"
+            icon={ExternalLink}
+            ariaLabel="选择 AI 平台并复制面试题解读 prompt（新标签页打开）"
           />
         </div>
 
