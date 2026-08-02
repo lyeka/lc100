@@ -1,14 +1,15 @@
 /**
- * [INPUT]: react-router (useParams, Link), @/data/interviews, @/components/ui/button, @/components/LearnedStamp, @/components/CopyPromptToAI, @/lib/interviewPrompts, lucide-react (ExternalLink)
+ * [INPUT]: react-router (useParams, Link), @/data/interviews, @/components/ui/button, @/components/CodeBlock, @/components/LearnedStamp, @/components/CopyPromptToAI, @/lib/interviewPrompts, lucide-react (ExternalLink)
  * [OUTPUT]: AgentDetail 古典书页阅读页
  * [POS]: 路由 /agent/:id，Agent 面试题阅读体验核心
  *        书页容器 bg-card shadow-2xl 浮于深色桌面
- *        阅读节奏：装饰线章节标题 → 背景说明(可选) → 参考要点(中文数字) → 追问(可选) → 纯文字导航
+ *        阅读节奏：装饰线章节标题 → 背景说明(可选) → 参考要点(中文数字) → 代码示例(可选) → 追问(可选) → 纯文字导航
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useParams, Link } from 'react-router'
 import { interviews, interviewMap } from '@/data/interviews'
 import { ExternalLink } from 'lucide-react'
+import { CodeBlock } from '@/components/CodeBlock'
 import { LearnedStamp } from '@/components/LearnedStamp'
 import { CopyPromptToAI } from '@/components/CopyPromptToAI'
 import { Button } from '@/components/ui/button'
@@ -164,6 +165,26 @@ export function AgentDetail() {
               ))}
             </ol>
           </section>
+        )}
+
+        {/* ── 代码示例（可选）── */}
+        {question.codeExample && (
+          <>
+            <Divider />
+            <section>
+              <h2 className="text-center text-sm tracking-[0.3em] text-foreground mb-6">
+                代 码 示 例
+              </h2>
+              <div className="px-4 sm:px-8">
+                <CodeBlock code={question.codeExample.code} language={question.codeExample.language || 'python'} />
+                {question.codeExample.explanation && (
+                  <p className="mt-4 text-sm text-foreground/70 leading-relaxed italic border-l-2 border-primary/30 pl-4">
+                    {question.codeExample.explanation}
+                  </p>
+                )}
+              </div>
+            </section>
+          </>
         )}
 
         {/* ── 追问（可选）── */}

@@ -1,7 +1,7 @@
 /**
  * [INPUT]: react-router (useSearchParams, Link), react (useState), @/data/interviews, @/lib/progress (useProgress)
  * [OUTPUT]: AgentHome — Agent 面试题古典目录页
- * [POS]: 路由 /agent，按 8 大分类分组的 Table of Contents，纯文字筛选
+ * [POS]: 路由 /agent，按 12 大分类分组的 Table of Contents，纯文字筛选
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useState } from 'react'
@@ -10,7 +10,7 @@ import { interviews, interviewCategories } from '@/data/interviews'
 import { useProgress } from '@/lib/progress'
 
 /* ── 罗马数字 ── */
-const ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X']
+const ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII']
 
 /* ── 等级颜色 — 与难度色系对齐 ── */
 const LEVEL_COLOR = {

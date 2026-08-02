@@ -1,5 +1,5 @@
 /**
- * [INPUT]: /agent-interview-json/*.json（8 个分类文件，每个为题目数组）
+ * [INPUT]: /agent-interview-json/*.json（12 个分类文件，每个为题目数组）
  * [OUTPUT]: interviews（排序数组）、interviewMap（id → 题目 Map）、interviewCategories（按教学顺序的分类列表）
  * [POS]: Agent 面试题数据源，构建时内联，零运行时请求
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

@@ -12,7 +12,7 @@ index.css:  全局样式，Tailwind + shadcn + Amethyst Haze 主题变量
 
 ### data/
 problems.js:    import.meta.glob 加载 100 题 JSON，导出 problems / problemMap / categories
-interviews.js:  import.meta.glob 加载 74 题 Agent 面试 JSON（flatMap），导出 interviews / interviewMap / interviewCategories
+interviews.js:  import.meta.glob 加载 127 题 Agent 面试 JSON（flatMap），导出 interviews / interviewMap / interviewCategories
 goInterviews.js: import.meta.glob 加载 40 题 Go 面试 JSON（flatMap），导出 goInterviews / goInterviewMap / goInterviewCategories
 mysqlInterviews.js: import.meta.glob 加载 52 题 MySQL 面试 JSON（flatMap），导出 mysqlInterviews / mysqlInterviewMap / mysqlInterviewCategories
 redisInterviews.js: import.meta.glob 加载 58 题 Redis 面试 JSON（flatMap），导出 redisInterviews / redisInterviewMap / redisInterviewCategories
@@ -30,8 +30,8 @@ ui/             shadcn/ui 原子组件
 Landing.jsx:       路由 /，ZIMA 画廊风格总目录：Museum Frame + Hero "Agentic Interview" + Unsplash 画廊卡片 + Content Split
 Home.jsx:          路由 /leetcode，LeetCode 古典目录页：分类/难度筛选 + 点引线目录行
 ProblemDetail.jsx: 路由 /problem/:id，阅读核心
-AgentHome.jsx:     路由 /agent，Agent 面试题古典目录页（8 分类 + 等级筛选）
-AgentDetail.jsx:   路由 /agent/:id，Agent 面试题书页阅读（背景 → 要点 → 追问）
+AgentHome.jsx:     路由 /agent，Agent 面试题古典目录页（12 分类 + 等级筛选）
+AgentDetail.jsx:   路由 /agent/:id，Agent 面试题书页阅读（背景 → 要点 → 代码示例(可选) → 追问）
 GoHome.jsx:        路由 /go，Go 面试题古典目录页（6 分类 + 等级筛选）
 GoDetail.jsx:      路由 /go/:id，Go 面试题书页阅读（背景 → 要点 → 代码示例 → 追问）
 MysqlHome.jsx:     路由 /mysql，MySQL 面试题古典目录页（6 分类 + 等级筛选）
